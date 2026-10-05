@@ -1,7 +1,8 @@
 import { balance, config } from '@customs/core';
 import { describe, expect, it } from 'vitest';
 import { workedBalance, workedPool } from '../testing/workedExample';
-import { type FillGame, fillDistances, teammatePairs, toBalancePlayer } from './balance';
+import { rosterKey } from '@customs/db';
+import { type FillGame, fillDistances, lastPlayedTeams, teammatePairs, toBalancePlayer } from './balance';
 import type { PoolMember } from './selection';
 
 /**
@@ -135,5 +136,46 @@ describe('teammatePairs (M18.13)', () => {
       game(['a', 'b', 'f', 'g', 'h'], ['c', 'd', 'e', 'i', 'j']),
     ]);
     expect(pairs.filter(([x, y]) => x === 'a' && y === 'b')).toHaveLength(1);
+  });
+});
+
+/**
+ * M21.8: "last game's teams again" reads the teams these ten actually played (pure half; the
+ * query is `selectLastPlayedTeams`, exercised in `lastTeams.integration.test.ts`).
+ */
+describe('lastPlayedTeams', () => {
+  const ten = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'];
+  const key = rosterKey(ten);
+
+  it('is null when these ten never played together', () => {
+    expect(lastPlayedTeams(key, [])).toBeNull();
+    // Nine of them plus somebody else is another roster.
+    expect(
+      lastPlayedTeams(key, [{ at: '2026-10-05T18:00:00Z', blue: ['a', 'b', 'c', 'd', 'e'], red: ['f', 'g', 'h', 'i', 'z'] }]),
+    ).toBeNull();
+  });
+
+  it('takes the newest teams of exactly this roster, sorted, whatever order they came in', () => {
+    const played = [
+      { at: '2026-10-05T18:00:00Z', blue: ['e', 'd', 'c', 'b', 'a'], red: ['f', 'g', 'h', 'i', 'j'] },
+      { at: '2026-10-05T19:00:00Z', blue: ['j', 'a', 'b', 'c', 'd'], red: ['e', 'f', 'g', 'h', 'i'] },
+      { at: '2026-10-05T20:00:00Z', blue: ['a', 'b', 'c', 'd', 'z'], red: ['e', 'f', 'g', 'h', 'i'] },
+    ];
+    expect(lastPlayedTeams(key, played)).toEqual(['a', 'b', 'c', 'd', 'j']);
+    expect(lastPlayedTeams(key, [...played].reverse())).toEqual(['a', 'b', 'c', 'd', 'j']);
+  });
+
+  it('breaks a same-instant tie on the sorted blue side, never on input order', () => {
+    const at = '2026-10-05T18:00:00Z';
+    const x = { at, blue: ['f', 'g', 'h', 'i', 'j'], red: ['a', 'b', 'c', 'd', 'e'] };
+    const y = { at, blue: ['a', 'b', 'c', 'd', 'f'], red: ['e', 'g', 'h', 'i', 'j'] };
+    expect(lastPlayedTeams(key, [x, y])).toEqual(['a', 'b', 'c', 'd', 'f']);
+    expect(lastPlayedTeams(key, [y, x])).toEqual(['a', 'b', 'c', 'd', 'f']);
+  });
+
+  it('skips teams that are not five and five', () => {
+    expect(
+      lastPlayedTeams(key, [{ at: '2026-10-05T18:00:00Z', blue: ['a', 'b', 'c', 'd'], red: ['e', 'f', 'g', 'h', 'i', 'j'] }]),
+    ).toBeNull();
   });
 });
