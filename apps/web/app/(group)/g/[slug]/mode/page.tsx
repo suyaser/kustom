@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Route } from 'next';
 import Link from 'next/link';
 import { loadModePanel } from '@/app/_mode/loadPanel';
 import { ModePanelBody } from '@/app/_mode/ModePanelBody';
@@ -44,11 +44,21 @@ export default async function ModePage({ params, searchParams }: ModePageProps) 
         <span className="[overflow-wrap:anywhere]">{data.group.name}</span>
         <span aria-hidden="true">{' · '}</span>
         <Link
-          href={groupHome(data.group)}
+          href={
+            data.lobby === null
+              ? groupHome(data.group)
+              : (`${groupHome(data.group)}?lobby=${data.lobby.id}` as Route)
+          }
           className="inline-flex min-h-11 items-center underline underline-offset-3"
         >
           {PANEL_CRUMB_TONIGHT}
         </Link>
+        {data.lobby === null ? null : (
+          <>
+            <span aria-hidden="true">{' · '}</span>
+            <span className="[overflow-wrap:anywhere]">{data.lobby.label}</span>
+          </>
+        )}
       </nav>
       <div className="rounded-card border border-border bg-card p-(--card-pad)">
         <ModePanelBody

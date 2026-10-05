@@ -27,7 +27,11 @@ export default async function ModePanelOverlay({
   const headingId = 'mode-panel-title';
 
   return (
-    <ModeOverlay headingId={headingId} title={modeTitle(modeName(data.view.shown))}>
+    <ModeOverlay
+      headingId={headingId}
+      title={modeTitle(modeName(data.view.shown))}
+      lobbyLabel={data.lobby?.label ?? null}
+    >
       <ModePanelBody
         mode={data.mode}
         fearless={data.fearless}
