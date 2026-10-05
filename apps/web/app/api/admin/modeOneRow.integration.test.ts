@@ -258,6 +258,59 @@ if (stack === null) {
       }
     });
 
+    it("M20.17: a next-game Redraw racing Roll lands in the lock or pending, or is refused as this game's", async () => {
+      const refused: number[] = [];
+      for (let round = 0; round < ROUNDS; round += 1) {
+        await setRow(regionRow('zaun', 'noxus'));
+        const { lobbyId } = await night.openLobby();
+        const [, redraw] = await Promise.all([
+          night.roll(lobbyId),
+          (async () => {
+            await sleep(round * 7);
+            return night.cardAnswer({ redraw: true, game: 'next' });
+          })(),
+        ]);
+        const lock = await night.lockOf(lobbyId);
+        const row = await night.cardRow();
+        if (redraw.status === 409) {
+          refused.push(round);
+          // Roll took the rule first: the tap answers with the regions being this game's now.
+          expect(redraw.json, `round ${round}`).toEqual({
+            ok: false,
+            error: "Teams were just rolled, so those regions are this game's now.",
+          });
+          expect(lock).toMatchObject({ lock_rule: 'region', lock_region_blue: 'zaun', lock_region_red: 'noxus' });
+          expect(row.pending_rule).toBeNull();
+        } else {
+          expect(redraw.status, JSON.stringify(redraw.json)).toBe(200);
+          // The redraw first (the lock took its pair) or after Roll's read (still pending): never lost.
+          expect(lock.lock_rule === 'region' || row.pending_rule === 'region', `round ${round}`).toBe(true);
+        }
+        await abandon(lobbyId);
+      }
+      // With Roll leading (round 0 starts both at once, later rounds delay the redraw), the
+      // refusal is the common outcome; record it so a run that never meets the case says so.
+      console.info(`M20.17 race: refused in rounds ${refused.join(', ') || 'none'} of ${ROUNDS}`);
+
+      // Roll certainly first: the refusal, for a Redraw and for a side, and nothing written.
+      await setRow(regionRow('zaun', 'noxus'));
+      const { lobbyId } = await rolled();
+      const before = await night.cardRow();
+      for (const body of [{ redraw: true, game: 'next' }, { side: 'blue', region: 'ionia' }]) {
+        expect(await night.cardAnswer(body)).toEqual({
+          status: 409,
+          json: { ok: false, error: "Teams were just rolled, so those regions are this game's now." },
+        });
+      }
+      expect(await night.cardRow()).toEqual(before);
+      await abandon(lobbyId);
+      // No lobby holding a region lock: today's answer stays.
+      expect((await night.cardAnswer({ redraw: true })).json).toEqual({
+        ok: false,
+        error: 'Region wars is not on for that game.',
+      });
+    });
+
     it('a pick racing a hand-back (teams coming down) is kept, with its own Rated', async () => {
       for (let round = 0; round < ROUNDS; round += 1) {
         await setRow({ pending_rule: 'class', pending_class_tag: 'Tank', rated_override: true });

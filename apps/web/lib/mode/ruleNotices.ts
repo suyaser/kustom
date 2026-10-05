@@ -95,6 +95,12 @@ export const NO_OTHER_PAIR = "There's no other pair of regions to draw.";
 export const REGIONS_STAY = 'The game has started, so the regions stay.';
 /** A region action with no region wars on its target: the card never offers it (M20.9: no new copy). */
 export const NO_REGION_RULE = 'Region wars is not on for that game.';
+/**
+ * M20.17 (product's copy): a next-game region action that lost to Roll. The row has no region rule
+ * any more because Roll moved it onto the balanced lobby's lock, so the pair the card offered a
+ * moment earlier is this game's now.
+ */
+export const ROLLED_TO_THIS_GAME = "Teams were just rolled, so those regions are this game's now.";
 
 /** `Next game is rated.` / `Next game is not rated.` */
 export function ratedNotice(rated: boolean): string {
