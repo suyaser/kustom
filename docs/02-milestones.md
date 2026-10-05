@@ -13689,7 +13689,7 @@ receipt-based surfaces recover and the seven readers above stay wrong for good.
   *Landed 2026-10-05 (3c16ab00, reviewer pass). staleLobby.integration replays 2026-10-02. M21.1 query rerun on the local stack after the merge: `no_visible_cause` 0 (one `lobby_created_after_start` in the fixture data).*
 - [ ] **M21.12** The game mode at game start. *(owner: `companion-engineer` for the payload, `platform-engineer` for the schema; from M21.5 and M21.6)* The server learns a game is an ARAM only at the end of game, so an ARAM played on custom or unrolled teams shows kickoff odds in game (M21.5) and gets a `Game on` post (M21.6). The engine already reads `/lol-gameflow/v1/session` at GameStart; send its game mode (queue / `gameData.queue` or `map`) in the `in_progress` body as an optional field (Rust payload, zod schema, regenerated goldens), store it on the lobby with the kickoff record, and have Tonight hide the odds and Discord skip the post for ARAM. Verify the field on a real client first (03-lcu-reference). Acceptance: an ARAM start stores the mode, Tonight shows no odds, no `Game on` post; a Rift start is unchanged; an old companion without the field behaves as today.
   *Built 2026-10-05 (branch m21-12-start-mode 9b8bdba3, reviewer pass); 0049 on main first, code merges after the owner applies it. ARAM value unverified on a live client (03-lcu-reference row); until verified an ARAM behaves as today.*
-- [ ] **M21.13** Your side line says where to move, not where you are. *(owner: `web-engineer`; copy below is
+- [x] **M21.13** Your side line says where to move, not where you are. *(owner: `web-engineer`; copy below is
   product's; from the M21.10 walk and the M21.9 reviewer's note)* While the lobby is `balanced` and the viewer's live
   side (`liveSide`) is known and is not the side the split gave them, the head line under `TEAMS ARE SET` reads, for
   a split Blue player sitting on Red: `YOU on RED. Move to BLUE to play top.` (`… Move to RED to play support.` the
@@ -13703,6 +13703,7 @@ receipt-based surfaces recover and the seven readers above stay wrong for good.
   screens at 375 and 1440 of the wrong-side line on a region wars night, showing the region link; (3) after a lobby
   post that moves them, a second open page shows today's line without a refresh; (4) members and visitors see no
   change.
+  *Landed 2026-10-05 (f28a65e5, reviewer pass; screens at 375/1440 in the scratchpad). Open for product: the screen-reader teams announcement still names the split side.*
 - [ ] **M21.14** The result post prints the pre-game odds for a game Kustom didn't pick. *(owner:
   `platform-engineer`; from the M21.10 walk; answers M21.7's open item, decision row 2026-10-05)* An unrolled game
   (and a game with no lobby at all) gets a `Game on` post with odds (`Blue 82% · 18% Red`), and after it Tonight,
