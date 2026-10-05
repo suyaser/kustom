@@ -97,7 +97,10 @@ export function fillGuardFlags(
 }
 
 /** The split's two teams are the two teams that played, on the same sides or swapped. */
-function sameTeams(split: readonly SplitSeat[], players: readonly { puuid: string; side: number }[]): boolean {
+function sameTeams(
+  split: readonly SplitSeat[],
+  players: readonly { puuid: string; side: number }[],
+): boolean {
   const key = (puuids: string[]) => [...puuids].sort().join(' ');
   const splitBlue = key(split.filter((seat) => seat.side === 100).map((seat) => seat.puuid));
   const splitRed = key(split.filter((seat) => seat.side === 200).map((seat) => seat.puuid));
@@ -169,7 +172,10 @@ export interface ReleasedFlag {
  * can be refolded at all: the old rule measured against the role pair at fold time, which is gone,
  * but neither new condition needs it. A second run finds nothing.
  */
-export async function selectReleasedFillFlags(client: ServiceClient, groupId: string): Promise<ReleasedFlag[]> {
+export async function selectReleasedFillFlags(
+  client: ServiceClient,
+  groupId: string,
+): Promise<ReleasedFlag[]> {
   const filled: { gameId: string; playerId: string }[] = [];
   for (let from = 0; ; from += PAGE_SIZE) {
     const { data, error } = await client
@@ -188,7 +194,10 @@ export async function selectReleasedFillFlags(client: ServiceClient, groupId: st
   if (filled.length === 0) return [];
 
   const gameIds = [...new Set(filled.map((row) => row.gameId))];
-  const seatsByGame = new Map<string, { playerId: string; puuid: string; side: number; role: Role | null }[]>();
+  const seatsByGame = new Map<
+    string,
+    { playerId: string; puuid: string; side: number; role: Role | null }[]
+  >();
   const lobbyByGame = new Map<string, string | null>();
   for (const chunk of chunked(gameIds)) {
     const { data, error } = await client
@@ -252,7 +261,10 @@ export function stillFilled(
 }
 
 /** Write {@link selectReleasedFillFlags}' answer: those rows back to `true`. Returns rows written. */
-export async function releaseFillFlags(client: ServiceClient, rows: readonly ReleasedFlag[]): Promise<number> {
+export async function releaseFillFlags(
+  client: ServiceClient,
+  rows: readonly ReleasedFlag[],
+): Promise<number> {
   let written = 0;
   for (let index = 0; index < rows.length; index += WRITE_CONCURRENCY) {
     const chunk = rows.slice(index, index + WRITE_CONCURRENCY);

@@ -1,7 +1,7 @@
 import { balance, config } from '@customs/core';
+import { rosterKey } from '@customs/db';
 import { describe, expect, it } from 'vitest';
 import { workedBalance, workedPool } from '../testing/workedExample';
-import { rosterKey } from '@customs/db';
 import { type FillGame, fillDistances, lastPlayedTeams, teammatePairs, toBalancePlayer } from './balance';
 import type { PoolMember } from './selection';
 
@@ -151,7 +151,9 @@ describe('lastPlayedTeams', () => {
     expect(lastPlayedTeams(key, [])).toBeNull();
     // Nine of them plus somebody else is another roster.
     expect(
-      lastPlayedTeams(key, [{ at: '2026-10-05T18:00:00Z', blue: ['a', 'b', 'c', 'd', 'e'], red: ['f', 'g', 'h', 'i', 'z'] }]),
+      lastPlayedTeams(key, [
+        { at: '2026-10-05T18:00:00Z', blue: ['a', 'b', 'c', 'd', 'e'], red: ['f', 'g', 'h', 'i', 'z'] },
+      ]),
     ).toBeNull();
   });
 
@@ -175,7 +177,9 @@ describe('lastPlayedTeams', () => {
 
   it('skips teams that are not five and five', () => {
     expect(
-      lastPlayedTeams(key, [{ at: '2026-10-05T18:00:00Z', blue: ['a', 'b', 'c', 'd'], red: ['e', 'f', 'g', 'h', 'i', 'j'] }]),
+      lastPlayedTeams(key, [
+        { at: '2026-10-05T18:00:00Z', blue: ['a', 'b', 'c', 'd'], red: ['e', 'f', 'g', 'h', 'i', 'j'] },
+      ]),
     ).toBeNull();
   });
 });

@@ -56,7 +56,9 @@ describe('fillGuardFlags', () => {
   });
 
   it('marks the same seats when the split was played on swapped sides', () => {
-    const swapped = played(Object.fromEntries(SPLIT.map((s, i) => [i, { side: s.side === 100 ? 200 : 100 }])));
+    const swapped = played(
+      Object.fromEntries(SPLIT.map((s, i) => [i, { side: s.side === 100 ? 200 : 100 }])),
+    );
     expect(filled(fillGuardFlags(SPLIT, swapped))).toEqual(ROLLED_FILLS);
   });
 

@@ -753,14 +753,15 @@ if (stack === null) {
         .single();
       if (error) throw new Error(error.message);
       const rows = await Promise.all(
-        [...[...blue].map((puuid) => [puuid, 100] as const), ...[...red].map((puuid) => [puuid, 200] as const)].map(
-          async ([puuid, side]) => ({
-            group_id: ORIGINAL_GROUP_ID,
-            game_id: data.id,
-            player_id: await playerIdOf(puuid),
-            side,
-          }),
-        ),
+        [
+          ...[...blue].map((puuid) => [puuid, 100] as const),
+          ...[...red].map((puuid) => [puuid, 200] as const),
+        ].map(async ([puuid, side]) => ({
+          group_id: ORIGINAL_GROUP_ID,
+          game_id: data.id,
+          player_id: await playerIdOf(puuid),
+          side,
+        })),
       );
       const players = await db.from('game_players').insert(rows);
       if (players.error) throw new Error(players.error.message);

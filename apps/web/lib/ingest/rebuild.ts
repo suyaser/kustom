@@ -24,7 +24,12 @@ import {
   formatComparison,
   type RebuildComparison,
 } from './rebuildCompare';
-import { recomputeInferredRoles, releaseFillFlags, selectAllPlayerIds, selectReleasedFillFlags } from './roles';
+import {
+  recomputeInferredRoles,
+  releaseFillFlags,
+  selectAllPlayerIds,
+  selectReleasedFillFlags,
+} from './roles';
 import { readSeed, type StoredSeed, sameSeed, seedColumns, seedFor } from './seed';
 
 /**
