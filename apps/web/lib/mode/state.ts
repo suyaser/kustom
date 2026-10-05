@@ -1,8 +1,7 @@
-import type { ModeRow, ModeState, PendingRule, RowPatch, RuleOption } from '@customs/core';
+import type { ModeRow, PendingRule, RowPatch } from '@customs/core';
 import type { Database } from '@customs/db';
 import { NEW_GROUP_MODE, parseGroupMode, ruleColumnsOf, ruleModeOf } from '@customs/db/schemas';
 import type { ServiceClient } from '../supabase';
-import { legacyVersion } from './legacyVersion';
 
 /**
  * The Mode card's row on the server (M20.7, `0047`): core's `ModeRow` (`mode/transition.ts`) on the
@@ -154,37 +153,4 @@ export function supabaseModeStore(client: ServiceClient): ModeStore {
       return storedFromColumns(again.data?.[0] ?? null);
     },
   };
-}
-
-// ---------------------------------------------------------------------------
-// The pre-M20.8 card's shape. M20.8 deletes everything below with the version reads.
-// ---------------------------------------------------------------------------
-
-/**
- * @deprecated M20.8: the card client still renders core's old `ModeState`. `version` is
- * `Date.parse(updated_at)` (the client store orders by it; no write reads it); region wars is the
- * old pairless option (the card's "before Roll" region copy is M20.8's).
- */
-export function legacyStateOf(stored: StoredModeRow): ModeState {
-  return {
-    standing: stored.row.standing,
-    pending: legacyRule(stored.row.pending),
-    ratedOverride: stored.row.rated,
-    version: legacyVersion(stored.updatedAt),
-  };
-}
-
-/** @deprecated M20.8: a missing row in the old shape (a new group's Normal). */
-export function missingState(): ModeState {
-  return { standing: NEW_GROUP_MODE, pending: null, ratedOverride: null, version: 0 };
-}
-
-/** @deprecated M20.8: see {@link legacyStateOf}. */
-export function stateFromRow(columns: ModeRowColumns): ModeState {
-  return legacyStateOf(storedFromColumns(columns));
-}
-
-function legacyRule(rule: PendingRule | null): RuleOption | null {
-  if (rule === null) return null;
-  return rule.id === 'region' ? { id: 'region' } : rule;
 }

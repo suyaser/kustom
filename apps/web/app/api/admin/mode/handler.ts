@@ -40,7 +40,7 @@ import {
   standingNotice,
   thisPairNotice,
 } from '@/lib/mode/ruleNotices';
-import { nextGameOf, writeLockRegions, writeModeCard } from '@/lib/mode/set';
+import { writeLockRegions, writeModeCard } from '@/lib/mode/set';
 import { hasOpenLobby, previousRule } from '@/lib/mode/spin';
 import { type ModeStore, type StoredModeRow, supabaseModeStore } from '@/lib/mode/state';
 import { siteOrigin } from '@/lib/siteUrl';
@@ -198,7 +198,11 @@ export async function handleSetGroupMode(
       notice = ratedNotice(nextRated(row));
       break;
     case 'pick':
-      notice = ruleChosenNotice(row.pending ?? action.rule, nextRated(row));
+      // A pick that wrote always leaves its rule pending (region wars with its pair).
+      notice =
+        row.pending === null
+          ? standingNotice(row.standing, false)
+          : ruleChosenNotice(row.pending, nextRated(row));
       break;
     case 'spin':
       // A Spin that wrote always carries its pick.
@@ -236,8 +240,6 @@ function answer(
       changed: out.changed,
       ...(out.thisGame === undefined ? {} : { thisGame: out.thisGame }),
       ...(out.spun === undefined ? {} : { spun: ruleChoiceOf(out.spun) }),
-      mode: out.after.row.standing,
-      next: nextGameOf(out.after),
     },
     out.notice,
   );

@@ -1,7 +1,5 @@
 import {
   type ChampionTable,
-  type LockedMode,
-  lockRated,
   type ModeLock,
   type ModeRow,
   type Rng,
@@ -229,22 +227,4 @@ export async function lockLobbyAtStart(
   });
   if (outcome.wrote) input.onWrite?.();
   return outcome.stored;
-}
-
-// ---------------------------------------------------------------------------
-// The pre-M20.8 card's shape. M20.8 deletes it with the version reads.
-// ---------------------------------------------------------------------------
-
-/**
- * @deprecated M20.8: the card client still renders core's old `LockedMode`. `rated` is the
- * effective flag (`lockRated`); `version` is `Date.parse(locked_at)`, which the card compares with
- * the row's `Date.parse(updated_at)` (`cardView.ts`: the card was written after the lock = the
- * next game's choice). Roll empties the row in the same transaction as the lock, so the two are
- * equal right after a Roll that moved something.
- */
-export function lockFromRow(row: LockRow): { lock: LockedMode } | null {
-  const lock = modeLockOf(row);
-  if (lock === null) return null;
-  const ms = row.locked_at == null ? Number.NaN : Date.parse(row.locked_at);
-  return { lock: { mode: lock.mode, rated: lockRated(lock), version: Number.isFinite(ms) ? ms : 0 } };
 }

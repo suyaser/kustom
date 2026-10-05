@@ -1,18 +1,18 @@
 import {
-  afterRecord,
   type ClassTag,
-  type LockedMode,
+  lockRated,
   type Mode,
-  type ModeState,
+  type ModeLock,
+  type ModeRow,
   modeRatedDefault,
-  nextGame,
-  type RuleOption,
+  nextRated,
+  type PendingRule,
   ruleKey,
   ruleOf,
   type StandingModeId,
 } from '@customs/core';
 import type { LobbyStatusValue, RoleValue } from '@customs/db';
-import { nextGameLine, type ShownMode } from './ruleCopy';
+import { nextGameLine } from './ruleCopy';
 
 /**
  * What the Mode card shows, with no champion table (M19.13): the half of `lib/mode/card.ts` the
@@ -21,6 +21,11 @@ import { nextGameLine, type ShownMode } from './ruleCopy';
  * card for any mode an admin picks next without shipping the champion table to every phone.
  * `modeCardView` (`card.ts`) is this function over facts it computes itself, so the server card and
  * the client card are one function (the parity test in `app/_mode/modeCardParity.test.tsx`).
+ *
+ * M20.8: one row, no version (M20 D6). "This game" is the lobby's lock (core's `ModeLock`, taken at
+ * Roll or at game start), "next game" is the group's row (core's `ModeRow`). Nothing here predicts
+ * what a record will leave: a Rift record writes nothing to the row, so the row already is the next
+ * game.
  *
  * No zod, no names: client islands import it (`lib/clientGraph.test.ts`).
  */
@@ -47,105 +52,94 @@ export interface UnplayableRules {
 }
 
 export interface ModeCardViewInput {
-  state: ModeState;
+  /** The next game: `group_modes`. */
+  row: ModeRow;
   lobbyStatus: LobbyStatusValue | null;
-  lock: LockedMode | null;
+  /** This game: the lobby's lock, or null. */
+  lock: ModeLock | null;
   classFacts: ClassFacts | null;
   /** The Fearless pool was reset since the render (a `fearless_state` row): no bans count. */
   poolCleared?: boolean | undefined;
 }
 
 export interface ModeCardView {
-  shown: ShownMode;
+  /** The game the card is about: the lock while the teams are set or in game, else the row's. */
+  shown: Mode;
   rated: boolean;
+  /** That game's standing mode (the lock's while locked). */
   standing: StandingModeId;
   /** The card is the lobby's lock (balanced or in game). */
   locked: boolean;
-  /** Admins, after Roll, when something changed since: `Next game: Mages only.` */
+  /** Admins, after Roll, when the row says more than the lock: `Next game: Mages only.` */
   nextLine: string | null;
-  /** Region wars could not be drawn at Roll; the rule is still pending. */
-  didntApply: boolean;
   /** Class wars: the open count for `Tanks only · 12 open` (under Fearless only), else null. */
   classOpen: number | null;
   /** Class wars: open champions of the class per usual lane, for the tiles and `Your lane`. */
   laneCounts: Record<RoleValue, number> | null;
   /**
-   * The group's pending rule key (`class:Tank`), whatever the card shows: what a Spin broadcast must
-   * match before the reveal plays (M15.5 review). Null with none.
+   * The row's pending rule (region wars with its pair), whatever the card shows: what a Spin
+   * broadcast must match before the reveal plays (M15.5 review), and what it names. Null with none.
    */
-  pendingKey: string | null;
+  pending: PendingRule | null;
 }
 
 const LOCKED_STATUSES: ReadonlySet<LobbyStatusValue> = new Set(['balanced', 'in_game']);
 
+/** The row as the mode it plays: the pending rule, else the standing mode. */
+export function rowMode(row: ModeRow): Mode {
+  return row.pending ?? { id: row.standing };
+}
+
 export function modeCardViewFrom(input: ModeCardViewInput): ModeCardView {
-  const { state, lock } = input;
+  const { row, lock } = input;
   const live = input.lobbyStatus !== null && LOCKED_STATUSES.has(input.lobbyStatus);
   const locked = live && lock !== null;
-  const next = nextGame(state);
 
-  const shown: ShownMode = locked ? lock.mode : (state.pending ?? { id: state.standing });
-  const rated = locked ? lock.rated : next.rated;
-  // M20.7: the card was written after the lock (timestamps since 0047; old integer versions only grew).
-  const moved = locked && state.version > lock.version;
-  const didntApply = locked && !moved && state.pending?.id === 'region' && lock.mode.id !== 'region';
+  const shown: Mode = locked ? lock.mode : rowMode(row);
+  const standing = locked ? lock.standing : row.standing;
+  const rated = locked ? lockRated(lock) : nextRated(row);
 
   let classOpen: number | null = null;
   let laneCounts: Record<RoleValue, number> | null = null;
   if (shown.id === 'class' && input.classFacts !== null) {
     const facts = input.classFacts[shown.tag];
-    const count = state.standing === 'fearless' && input.poolCleared !== true ? facts.banned : facts.all;
-    classOpen = state.standing === 'fearless' ? count.open : null;
+    const count = standing === 'fearless' && input.poolCleared !== true ? facts.banned : facts.all;
+    classOpen = standing === 'fearless' ? count.open : null;
     laneCounts = { ...count.lanes };
   }
 
   return {
     shown,
     rated,
-    standing: state.standing,
+    standing,
     locked,
-    nextLine: moved ? nextLineFor(upcomingState(state, input.lobbyStatus, lock), lock) : null,
-    didntApply,
+    nextLine: locked ? nextLineOf(row, lock) : null,
     classOpen,
     laneCounts,
-    pendingKey: state.pending === null ? null : ruleKey(state.pending),
+    pending: row.pending,
   };
 }
 
-/**
- * The card as it will be for the next game: after Roll, what this game's record will leave
- * (core's `afterRecord`: the locked rule used up unless an admin queued something since, a
- * Rated-only flip kept); before Roll, the card itself. Text only: the admins' `Next game: …` line.
- * The controls never read it (owner bug 1: a prediction there made the select read Normal after
- * Roll); they show what is set.
- */
-export function upcomingState(
-  state: ModeState,
-  lobbyStatus: LobbyStatusValue | null,
-  lock: LockedMode | null,
-): ModeState {
-  const live = lobbyStatus !== null && LOCKED_STATUSES.has(lobbyStatus);
-  return live && lock !== null ? afterRecord(state, { kind: 'rift', lock }) : state;
-}
-
-const modeKeyOf = (mode: Mode | RuleOption | StandingModeId): string => {
-  if (typeof mode === 'string') return mode;
+const modeKeyOf = (mode: Mode): string => {
   const rule = ruleOf(mode);
   return rule === null ? mode.id : ruleKey(rule);
 };
 
 /**
- * `Next game: …` for the upcoming state against this game's lock. The mode is named unless it is
- * this game's; Rated is said when it is not the next mode's default, or when it is all that differs
- * from this game.
+ * `Next game: …` after Roll, read off the row: nothing while the row is as Roll left it (no rule,
+ * Rated at its default, the lock's standing mode). The mode is named unless it is this game's;
+ * Rated is said when it is not the next mode's default, or when it is all that differs from this
+ * game.
  */
-function nextLineFor(upcoming: ModeState, lock: LockedMode): string {
-  const next = nextGame(upcoming);
-  const choice = upcoming.pending ?? upcoming.standing;
-  const sameMode = modeKeyOf(choice) === modeKeyOf(lock.mode);
-  const saysRated = next.rated !== modeRatedDefault(next.modeId) || (sameMode && next.rated !== lock.rated);
+export function nextLineOf(row: ModeRow, lock: ModeLock): string | null {
+  if (row.pending === null && row.rated === null && row.standing === lock.standing) return null;
+  const next = rowMode(row);
+  const choice = row.pending ?? row.standing;
+  const rated = nextRated(row);
+  const sameMode = modeKeyOf(next) === modeKeyOf(lock.mode);
+  const saysRated = rated !== modeRatedDefault(next.id) || (sameMode && rated !== lockRated(lock));
   if (!saysRated) return nextGameLine(choice);
-  return nextGameLine(sameMode ? null : choice, next.rated);
+  return nextGameLine(sameMode ? null : choice, rated);
 }
 
 /**
@@ -157,72 +151,51 @@ export function showsFearlessPool(view: Pick<ModeCardView, 'shown' | 'standing'>
   return view.shown.id === 'fearless' || (view.shown.id === 'mirror' && view.standing === 'fearless');
 }
 
-/**
- * After Roll, whether picking the pending rule again would queue it for the next game too
- * (owner bug 3): the lobby locked that very rule and nothing changed since, so the record would use
- * it up. The select already shows it, so the controls offer `Set mode` for it anyway.
- */
-export function requeueable(
-  state: ModeState,
-  lobbyStatus: LobbyStatusValue | null,
-  lock: LockedMode | null,
-): boolean {
-  const live = lobbyStatus !== null && LOCKED_STATUSES.has(lobbyStatus);
-  if (!live || lock === null || state.version > lock.version || state.pending === null) return false;
-  const locked = ruleOf(lock.mode);
-  return locked !== null && ruleKey(locked) === ruleKey(state.pending);
-}
-
-/** The select's value for the next game: a standing mode or a rule key (`class:Tank`). */
-export function selectValue(state: ModeState): string {
-  return state.pending === null ? state.standing : ruleKey(state.pending);
+/** The select's value: what is set for the next game, a standing mode or a rule key (`class:Tank`). */
+export function selectValue(row: ModeRow): string {
+  return row.pending === null ? row.standing : ruleKey(row.pending);
 }
 
 /**
  * Which rule options the select greys out with ` (too few open)` (D7): under standing Fearless, the
  * rules unplayable with tonight's bans. The rule already pending stays selectable.
  */
-export function tooFewFrom(state: ModeState, unplayable: UnplayableRules, poolCleared = false): string[] {
-  const list = state.standing === 'fearless' && !poolCleared ? unplayable.banned : unplayable.all;
-  const pending = state.pending === null ? null : ruleKey(state.pending);
+export function tooFewFrom(row: ModeRow, unplayable: UnplayableRules, poolCleared = false): string[] {
+  const list = row.standing === 'fearless' && !poolCleared ? unplayable.banned : unplayable.all;
+  const pending = row.pending === null ? null : ruleKey(row.pending);
   return list.filter((key) => key !== pending);
 }
 
-/** How long after a game lands its compare-and-clear write can still arrive (M15.5). */
-export const RECORD_CLEAR_SLACK_MS = 30_000;
-
 /**
- * What the members' `Normal mode now.` note needs from the night besides the card state: when the
- * night began, when the last game landed, the newest finished tape entry, and whether a lobby is
- * in game or finished now. Computed on the server (`normalNoteFactsOf`, `view.ts`), so the client
- * card can answer the note for a state it heard after the render.
+ * What the members' `Normal mode now.` note needs from the night besides the switch: the newest
+ * finished tape entry, and whether a lobby is in game or finished now. Computed on the server
+ * (`normalNoteFactsOf`, `view.ts`), so the client card can answer the note for a switch it heard
+ * after the render.
  */
 export interface NormalNoteFacts {
-  nightStart: string;
-  lastGameAt: string | null;
   /** The newest `createdAt` (ms) of tonight's tape entries with a result, or null with none. */
   lastResultAt: number | null;
   finishedNow: boolean;
 }
 
 /**
- * The members' dashed `Normal mode now.` note (M14.30): the group is on Normal, the switch
- * happened tonight, and no game of tonight has started since (a game landing ends the moment).
+ * The members' dashed `Normal mode now.` note (M14.30): the group is on plain Normal, an admin
+ * switched Fearless off at `since`, and no game has landed since (a game landing ends the moment).
+ *
+ * M20.8: `since` is the admin write itself, as this page heard it (the client mode store records
+ * the `group_modes` row that moved the standing mode from Fearless to Normal; only an admin's
+ * Set mode moves it). It used to be `group_modes.updated_at`, which Roll and the hand-backs move
+ * too since M20.7. A page opened after the switch has no `since` and shows no note.
  */
 export function normalNote(
   facts: NormalNoteFacts,
-  card: { standing: StandingModeId; pending: RuleOption | null; since: string | null },
+  card: { standing: StandingModeId; pending: PendingRule | null; since: string | null },
 ): boolean {
   if (card.standing !== 'normal' || card.since === null) return false;
   // M15.5: a pending rule is what the card shows; the note is about plain Normal.
   if (card.pending !== null) return false;
   const since = Date.parse(card.since);
-  if (!Number.isFinite(since) || since < Date.parse(facts.nightStart)) return false;
-  // M15.5: since 0032 a recorded game writes the card too (the compare-and-clear: a rule game
-  // handing back to Normal, a Rated switch resetting). A write that close to the last game landing
-  // is the server's, not an admin's switch: no `An admin switched off Fearless` note.
-  const landed = facts.lastGameAt === null ? Number.NaN : Date.parse(facts.lastGameAt);
-  if (Number.isFinite(landed) && since <= landed + RECORD_CLEAR_SLACK_MS) return false;
+  if (!Number.isFinite(since)) return false;
   const laterGame = facts.lastResultAt !== null && facts.lastResultAt > since;
   return !laterGame && !facts.finishedNow;
 }

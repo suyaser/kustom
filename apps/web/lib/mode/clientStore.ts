@@ -1,34 +1,27 @@
-import {
-  CLASS_TAGS,
-  type ClassTag,
-  chooseRule,
-  chooseStanding,
-  type ModeState,
-  type RuleOption,
-  type StandingModeId,
-  setRated,
-} from '@customs/core';
+import type { ModeRow, PendingRule } from '@customs/core';
 import { useSyncExternalStore } from 'react';
 import { ruleFromKey } from './spinEvents';
 
 /**
- * The client mode store (M19.13; decision row 2026-10-04, "the name-free client slice").
+ * The client mode store (M19.13; decision row 2026-10-04, "the name-free client slice"; M20.8 on
+ * the one-row model).
  *
  * Tonight's Mode card is the one slice the client may patch without a server render: it prints no
- * player name, so no same-name label can go wrong. The slice is the card's **state** only (standing
- * mode, pending rule, Rated switch, `group_modes.version`, `updated_at`, the Fearless pool's
- * `reset_at`). It never holds a name or a player id: `set_by`, `pending_set_by` and `reset_by` are
- * not read into it (the row parsers drop them before anything here sees a row).
+ * player name, so no same-name label can go wrong. The slice is the card's **row** only (core's
+ * `ModeRow`: standing mode, pending rule with its region pair, Rated switch), its
+ * `group_modes.updated_at`, and the Fearless pool's `reset_at`. It never holds a name or a player
+ * id: `set_by`, `pending_set_by` and `reset_by` are not read into it (the row parsers drop them
+ * before anything here sees a row). This game's lock is the server render's, never patched here.
  *
  * Three sources, and only these:
  * - **the server render's props** (the first paint and every later render), merged at read time;
- * - **the `group_modes` / `fearless_state` rows the page's own channel receives** (`TonightLive`),
- *   never a broadcast;
- * - **the controls' own route answers** (`ModeControls`), plus one optimistic action while a Set
- *   mode or Rated tap is in flight.
+ * - **the `group_modes` / `fearless_state` rows the page's own channel receives** (`TonightLive`,
+ *   which hands over only the rows an admin's `mode` write sent), never a broadcast;
+ * - **the controls' own route answers** (`ModeControls`, the answer's `state`), plus a draft of the
+ *   last tap while its write is in flight.
  *
- * **Gated on `group_modes.version`.** A row or answer older than what the store (or the render) has
- * is ignored; an equal row is taken (it is the same state, with the row's own `updated_at`). The
+ * **Gated on `group_modes.updated_at`** (no version since M20.7). A row or answer older than what
+ * the store (or the render) has is ignored; an equal one is taken (it is the same row). The
  * render's props win whenever they are at least as new as the store, so a later server render
  * always takes over again. `fearless_state` has no version: its `reset_at` only moves forward.
  *
@@ -37,24 +30,35 @@ import { ruleFromKey } from './spinEvents';
  */
 
 export interface ModeSlice {
-  state: ModeState;
-  /** `group_modes.updated_at` (the members' `Back to Normal.` note), or null when not known. */
+  row: ModeRow;
+  /** `group_modes.updated_at` (the gate), or null when not known (a group with no row). */
   updatedAt: string | null;
   /** `fearless_state.reset_at`, or null when not known. */
   resetAt: string | null;
 }
 
-/** A tap in flight: shown on the card until its route answers (or fails). */
+/** A `group_modes` row, or a route answer's `state`, as the store takes it. */
+export interface ModeRowSlice {
+  row: ModeRow;
+  updatedAt: string | null;
+}
+
+/** A tap in flight: drafted on the card until its route answers (or fails). */
 export type ModeOptimistic = { kind: 'choice'; choice: string } | { kind: 'rated'; rated: boolean };
 
 interface Entry {
-  /** The newest state a row or an answer confirmed, or null with none since the page loaded. */
-  confirmed: { state: ModeState; updatedAt: string | null } | null;
+  /** The newest row a channel row or an answer confirmed, or null with none since the page loaded. */
+  confirmed: ModeRowSlice | null;
   resetAt: string | null;
   optimistic: { action: ModeOptimistic; token: number } | null;
+  /**
+   * `updated_at` of the admin write that moved the standing mode from Fearless to Normal, as this
+   * page heard it (the members' `Normal mode now.` note); null with none.
+   */
+  normalSince: string | null;
 }
 
-const EMPTY: Entry = { confirmed: null, resetAt: null, optimistic: null };
+const EMPTY: Entry = { confirmed: null, resetAt: null, optimistic: null, normalSince: null };
 
 let entries = new Map<string, Entry>();
 const listeners = new Set<() => void>();
@@ -69,46 +73,29 @@ function write(groupId: string, next: Entry): void {
   for (const listener of listeners) listener();
 }
 
-/** A `group_modes` row as the store takes it: the parsed state and its `updated_at`. */
-export interface ModeRowSlice {
-  state: ModeState;
-  updatedAt: string | null;
+/** `updated_at` as a number to order by; an unknown time is the oldest. */
+export function rowTime(updatedAt: string | null): number {
+  const ms = updatedAt === null ? Number.NaN : Date.parse(updatedAt);
+  return Number.isFinite(ms) ? ms : 0;
 }
 
 /**
- * A `group_modes` row this page's channel received. Taken when it is at least as new as what the
- * store holds; `false` when it was older and ignored.
+ * A `group_modes` row this page's channel received, or a control's own route answer. Taken when it
+ * is at least as new as what the store holds; `false` when it was older and ignored.
  */
-export function applyModeRow(groupId: string, row: ModeRowSlice): boolean {
+export function applyModeRow(groupId: string, slice: ModeRowSlice): boolean {
   const current = entry(groupId);
-  if (current.confirmed !== null && row.state.version < current.confirmed.state.version) return false;
-  write(groupId, { ...current, confirmed: { state: row.state, updatedAt: row.updatedAt } });
-  return true;
-}
-
-/** What a mode route answers (`next`, the card after the write): core's state plus the token. */
-export interface ModeAnswer {
-  standing: StandingModeId;
-  /** A rule key (`class:Tank`, `region`, `mirror`), or null. */
-  rule: string | null;
-  ratedOverride: boolean | null;
-  version: number;
-}
-
-/**
- * A control's own route answer. Taken only when newer than the store (an equal row already carries
- * its `updated_at`); an answer has no `updated_at` of its own, so it keeps none.
- */
-export function applyModeAnswer(groupId: string, answer: ModeAnswer): boolean {
-  const current = entry(groupId);
-  if (current.confirmed !== null && answer.version <= current.confirmed.state.version) return false;
-  const state: ModeState = {
-    standing: answer.standing,
-    pending: answer.rule === null ? null : ruleFromKey(answer.rule),
-    ratedOverride: answer.ratedOverride,
-    version: answer.version,
-  };
-  write(groupId, { ...current, confirmed: { state, updatedAt: null } });
+  if (current.confirmed !== null && rowTime(slice.updatedAt) < rowTime(current.confirmed.updatedAt)) {
+    return false;
+  }
+  const before = current.confirmed?.row.standing ?? lastGood.get(groupId)?.row.standing ?? null;
+  const normalSince =
+    slice.row.standing !== 'normal'
+      ? null
+      : before === 'fearless'
+        ? slice.updatedAt
+        : current.normalSince;
+  write(groupId, { ...current, confirmed: slice, normalSince });
   return true;
 }
 
@@ -127,16 +114,11 @@ export function beginOptimistic(groupId: string, action: ModeOptimistic): number
   return tokens;
 }
 
-/** The tap answered or failed: its optimistic action goes (a newer tap's stays). */
+/** The tap answered or failed: its draft goes (a newer tap's stays). */
 export function endOptimistic(groupId: string, token: number): void {
   const current = entry(groupId);
   if (current.optimistic?.token !== token) return;
   write(groupId, { ...current, optimistic: null });
-}
-
-/** The version the store has confirmed for a group, or null with none. */
-export function confirmedVersion(groupId: string): number | null {
-  return entry(groupId).confirmed?.state.version ?? null;
 }
 
 /** Tests only: forget every group. */
@@ -155,22 +137,32 @@ function laterThan(at: string | null, than: string | null): boolean {
   return Number.isNaN(b) || a > b;
 }
 
-function optimisticState(state: ModeState, action: ModeOptimistic): ModeState {
-  if (action.kind === 'rated') return setRated(state, action.rated);
-  if (action.choice === 'normal' || action.choice === 'fearless') return chooseStanding(state, action.choice);
+/**
+ * The draft of a tap: what the write will most likely leave, never a guess the client cannot make.
+ * A standing pick empties the rule and Rated, a rule pick resets Rated, a Rated flip sets it.
+ * Region wars keeps its pair when it is already pending; otherwise the server draws the pair, so
+ * the card waits for the answer (the select already shows the pick).
+ */
+export function draftRow(row: ModeRow, action: ModeOptimistic): ModeRow {
+  if (action.kind === 'rated') return { ...row, rated: action.rated };
+  if (action.choice === 'normal' || action.choice === 'fearless') {
+    return { standing: action.choice, pending: null, rated: null };
+  }
   const rule = ruleFromKey(action.choice);
-  return rule === null ? state : chooseRule(state, rule);
+  if (rule === null) return row;
+  if (rule.id === 'region') return row.pending?.id === 'region' ? { ...row, rated: null } : row;
+  return { ...row, pending: rule as PendingRule, rated: null };
 }
 
-/** The merged slice, and the version confirmed by a row, an answer or the render (no tap in flight). */
+/** The merged slice, plus the admin's switch off Fearless as this page heard it. */
 export interface MergedSlice extends ModeSlice {
-  confirmedVersion: number;
+  normalSince: string | null;
 }
 
 /**
  * The slice the card shows: the render's props, unless the store has confirmed something newer;
- * the later `reset_at`; then a tap in flight on top (core's own transition, so its version is the
- * one the write will have). Pure, so the merge is a unit test.
+ * the later `reset_at`; then a tap in flight on top ({@link draftRow}). Pure, so the merge is a unit
+ * test.
  */
 export function mergeSlice(
   server: ModeSlice,
@@ -178,16 +170,14 @@ export function mergeSlice(
   store: ReadonlyMap<string, Entry>,
   withTap = true,
 ): MergedSlice {
-  const stored = store.get(groupId) ?? EMPTY;
-  const held = withTap ? stored : { ...stored, optimistic: null };
+  const held = store.get(groupId) ?? EMPTY;
   const confirmed = held.confirmed;
   const base =
-    confirmed !== null && confirmed.state.version > server.state.version
-      ? { state: confirmed.state, updatedAt: confirmed.updatedAt }
-      : { state: server.state, updatedAt: server.updatedAt };
+    confirmed !== null && rowTime(confirmed.updatedAt) > rowTime(server.updatedAt) ? confirmed : server;
   const resetAt = laterThan(held.resetAt, server.resetAt) ? held.resetAt : server.resetAt;
-  const state = held.optimistic === null ? base.state : optimisticState(base.state, held.optimistic.action);
-  return { state, updatedAt: base.updatedAt, resetAt, confirmedVersion: base.state.version };
+  const tap = withTap ? held.optimistic : null;
+  const row = tap === null ? base.row : draftRow(base.row, tap.action);
+  return { row, updatedAt: base.updatedAt, resetAt, normalSince: held.normalSince };
 }
 
 /** Whether the pool was reset after the render the page was given (the card's bans go to none). */
@@ -222,7 +212,7 @@ export function useModeSlice(
 
 /**
  * The last render whose `group_modes` read worked, per group (audit: a failed read must not show
- * Normal). A render whose read failed carries a stand-in state; the card keeps the last good one
+ * Normal). A render whose read failed carries a stand-in row; the card keeps the last good one
  * instead (and says it could not read the mode). Written only by renders that read it, idempotent.
  */
 const lastGood = new Map<string, ModeSlice>();
@@ -230,17 +220,8 @@ const lastGood = new Map<string, ModeSlice>();
 export function lastGoodServer(groupId: string, server: ModeSlice, readFailed: boolean): ModeSlice {
   if (!readFailed) {
     const held = lastGood.get(groupId);
-    if (held === undefined || held.state.version <= server.state.version) lastGood.set(groupId, server);
+    if (held === undefined || rowTime(held.updatedAt) <= rowTime(server.updatedAt)) lastGood.set(groupId, server);
     return server;
   }
   return lastGood.get(groupId) ?? server;
-}
-
-/** Pure: a rule key the store can hold, for a row's `pending_rule` / `pending_class_tag`. */
-export function pendingOfRow(rule: string | null, classTag: string | null): RuleOption | null {
-  if (rule === 'region') return { id: 'region' };
-  if (rule === 'mirror') return { id: 'mirror' };
-  if (rule === 'class' && classTag !== null && (CLASS_TAGS as readonly string[]).includes(classTag))
-    return { id: 'class', tag: classTag as ClassTag };
-  return null;
 }

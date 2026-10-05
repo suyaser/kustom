@@ -71,23 +71,6 @@ export {
   type ModeCheck,
   type SideCheck,
 } from './mode/check';
-// Deprecated (M20.6): the version-token lifecycle. Delete when apps/web is on `transition` (M20.7, M20.8).
-export {
-  afterRecord,
-  chooseRule,
-  chooseStanding,
-  consumesRule,
-  type GameStamp,
-  gameStamp,
-  type LockedMode,
-  lockAtRoll,
-  type ModeState,
-  nextGame,
-  type RecordedGame,
-  type RecordedGameKind,
-  setRated,
-  startState,
-} from './mode/lifecycle';
 export {
   type ChampionFacts,
   type ChampionTable,

@@ -10,8 +10,8 @@ import { CLASS_PLURAL, ruleLabel } from './ruleNotices';
  * functions, no zod, so client islands (the controls, the reveal, the announcer) may read it.
  */
 
-/** What the card or the panel is about: a standing mode, a rule picked (region not drawn yet) or locked. */
-export type ShownMode = Mode | RuleOption;
+/** What the card or the panel is about: a standing mode or a rule (region wars always with its pair, M20 D9). */
+export type ShownMode = Mode;
 
 const STANDING_NAME: Record<StandingModeId, string> = { normal: 'Normal', fearless: 'Fearless' };
 
@@ -46,9 +46,9 @@ export function isRule(mode: ShownMode): mode is Exclude<ShownMode, { id: 'norma
   return mode.id !== 'normal' && mode.id !== 'fearless';
 }
 
-/** The two drawn regions, when the shown region wars has them (after Roll). */
+/** Region wars' two regions (before Roll the row's pair, after Roll the lock's), else null. */
 export function drawnRegions(mode: ShownMode): { blue: RegionId; red: RegionId } | null {
-  if (mode.id !== 'region' || !('blue' in mode)) return null;
+  if (mode.id !== 'region') return null;
   return { blue: mode.blue as RegionId, red: mode.red as RegionId };
 }
 
@@ -58,7 +58,6 @@ export function classStatus(tag: ClassTag, open: number | null): string {
   return open === null ? label : `${label} · ${open} open`;
 }
 
-export const REGION_STATUS_BEFORE_ROLL = 'Sides drawn when teams are rolled.';
 export const REGION_VS = 'vs';
 export const MIRROR_STATUS = 'Same champion as your lane opponent';
 
@@ -117,13 +116,6 @@ export function inGameRuleLine(mode: ShownMode): string | null {
   return null;
 }
 
-/**
- * [NEW COPY] Region wars could not be drawn at Roll (fewer than two regions with 8 open): the game
- * was locked on the standing mode and the rule waits (decision row 2026-10-04).
- */
-export const REGION_DIDNT_APPLY =
-  "Region wars didn't apply to this game: too few open champions for two regions. It's still set for the next game.";
-
 /* ---------------------------------------------------------------------------
  * The admin foot.
  * ------------------------------------------------------------------------- */
@@ -133,9 +125,8 @@ export const OPTGROUP_REGION = 'Region wars (one game)';
 export const OPTGROUP_MIRROR = 'Mirror match (one game)';
 export const TOO_FEW_OPEN = ' (too few open)';
 
-/** A select option's label. */
+/** A select option's label: the rule's short name (region wars' regions are drawn when it is chosen, M20 D9). */
 export function optionLabel(rule: RuleOption): string {
-  if (rule.id === 'region') return 'Region wars, sides drawn at roll';
   return ruleLabel(rule);
 }
 
@@ -169,13 +160,6 @@ export const RATED_OFF = 'Next game is recorded, not rated.';
 /* ---------------------------------------------------------------------------
  * The announcer.
  * ------------------------------------------------------------------------- */
-
-/** `Spin says: Tanks only.`; region wars says when its sides are drawn. */
-export function spinAnnouncement(rule: RuleOption): string {
-  return rule.id === 'region'
-    ? 'Spin says: Region wars. Sides are drawn when teams are rolled.'
-    : `Spin says: ${ruleLabel(rule)}.`;
-}
 
 /** The rule game was recorded and the card is back on the standing mode. */
 export function ruleDoneLine(standing: StandingModeId): string {
@@ -224,8 +208,6 @@ export function regionEmptyLane(region: RegionId): string {
 export function regionSentence(blue: RegionId, red: RegionId, rated: boolean): string {
   return `Blue picks only from ${regionName(blue)}, Red only from ${regionName(red)}. ${NOBODY_STOPPED_SIDES} ${ratedTail(rated)}`;
 }
-
-export const REGION_PANEL_BEFORE_ROLL = 'The two regions are drawn when teams are rolled.';
 
 export function mirrorSentence(rated: boolean): string {
   const base =

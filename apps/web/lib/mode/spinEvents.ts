@@ -1,4 +1,4 @@
-import { CLASS_TAGS, type ClassTag, type RuleOption } from '@customs/core';
+import { CLASS_TAGS, type ClassTag, type PendingRule, type RuleOption } from '@customs/core';
 
 /**
  * The Spin reveal's in-page events (M15.5; brief D3). No zod: client islands read this.
@@ -45,4 +45,22 @@ export function spinDetail(event: Event | { payload?: unknown }): RuleOption | n
     'detail' in event ? (event as CustomEvent<unknown>).detail : (event as { payload?: unknown }).payload;
   const rule = typeof detail === 'object' && detail !== null && 'rule' in detail ? detail.rule : null;
   return ruleFromKey(rule);
+}
+
+/** A region slug as the region table spells it (`shadow-isles`): `regionIdSchema`'s rule, without zod. */
+const REGION_SLUG = /^[a-z][a-z-]{1,40}$/;
+
+/**
+ * The rule an event names with its region pair (`{ rule: 'region', blue, red }`): this admin's own
+ * Spin passes the route's answer this way, so its reveal names the pair at once (M20.8). Null for
+ * anything else, and for region wars without a readable pair.
+ */
+export function spinPendingDetail(event: Event): PendingRule | null {
+  const rule = spinDetail(event);
+  if (rule === null || rule.id !== 'region') return rule;
+  const detail = (event as CustomEvent<unknown>).detail as { blue?: unknown; red?: unknown } | null;
+  const blue = detail?.blue;
+  const red = detail?.red;
+  if (typeof blue !== 'string' || typeof red !== 'string') return null;
+  return REGION_SLUG.test(blue) && REGION_SLUG.test(red) ? { id: 'region', blue, red } : null;
 }

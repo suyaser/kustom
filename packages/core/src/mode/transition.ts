@@ -1,6 +1,7 @@
 /**
  * The Mode card's state as one pure transition (M20.6; decision rows M20 D6, D7, D9 to D11).
- * Replaces `lifecycle.ts`'s version-token model: there is no version and no compare-and-set.
+ * It replaced M15.2's version-token lifecycle (deleted in M20.8): there is no version and no
+ * compare-and-set.
  *
  *   row (next game) ──take (Roll)──> lock (this game) ──recordGame (Rift)──> stamp; row untouched
  *        ^                               │

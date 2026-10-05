@@ -142,14 +142,16 @@ describe('setGroupModeResponseSchema', () => {
   } as const;
 
   it('M20.7: is one { state, notice } answer', () => {
-    const answer = { ok: true, state, notice: 'Next game: Region wars.', changed: true, mode: 'fearless' };
+    const answer = { ok: true, state, notice: 'Next game: Region wars.', changed: true };
     expect(setGroupModeResponseSchema.parse(answer)).toEqual(answer);
     expect(setGroupModeResponseSchema.safeParse({ ...answer, notice: '' }).success).toBe(false);
-    expect(setGroupModeResponseSchema.safeParse({ ...answer, mode: 'class' }).success).toBe(false);
+    expect(setGroupModeResponseSchema.safeParse({ ...answer, state: { ...state, standing: 'class' } }).success).toBe(
+      false,
+    );
   });
 
   it('M20.7: never carries a region rule without its pair', () => {
-    const answer = { ok: true, notice: 'x', changed: true, mode: 'fearless' };
+    const answer = { ok: true, notice: 'x', changed: true };
     expect(
       setGroupModeResponseSchema.safeParse({ ...answer, state: { ...state, pending: { id: 'region' } } })
         .success,

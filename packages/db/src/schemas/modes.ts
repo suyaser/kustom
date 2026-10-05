@@ -239,24 +239,9 @@ export const modeLockStateSchema = z.object({
 export type ModeLockState = z.infer<typeof modeLockStateSchema>;
 
 /**
- * @deprecated M20.7 keeps it for the M15/M19.13 card client until M20.8 rewrites it on
- * {@link modeRowStateSchema}. `version` is `Date.parse(group_modes.updated_at)`: an ordering for
- * the client store only (no write reads it; the column is gone).
- */
-export const nextGameSchema = z.object({
-  standing: groupModeSchema,
-  rule: ruleChoiceSchema.nullable(),
-  rated: z.boolean(),
-  ratedOverride: z.boolean().nullable(),
-  version: z.number().int().nonnegative(),
-});
-
-export type NextGame = z.infer<typeof nextGameSchema>;
-
-/**
  * The answer to every action (M20.7): `{ state, notice }`, the row after the write and the route's
  * one line (the card shows it, never recomputes it), plus `thisGame` when the action changed the
- * lock, and Spin's pick. `mode` and `next` are the pre-M20.8 client's fields, deleted with it.
+ * lock, and Spin's pick. The card client (M20.8) reads `state` and `notice` only.
  */
 export const setGroupModeResponseSchema = z.object({
   ok: z.literal(true),
@@ -267,26 +252,9 @@ export const setGroupModeResponseSchema = z.object({
   thisGame: modeLockStateSchema.optional(),
   /** Spin's pick, on a Spin answer only. */
   spun: ruleChoiceSchema.optional(),
-  /** @deprecated M20.8: read `state.standing`. */
-  mode: groupModeSchema,
-  /** @deprecated M20.8: read `state`. */
-  next: nextGameSchema.optional(),
 });
 
 export type SetGroupModeResponse = z.infer<typeof setGroupModeResponseSchema>;
-
-/**
- * @deprecated M20.8: the fields of the answer the pre-M20.8 card client reads (M15.3's answer).
- * {@link setGroupModeResponseSchema} is a superset, so this parses every M20.7 answer; M20.8
- * deletes it with the client's `next` reads.
- */
-export const legacyModeAnswerSchema = z.object({
-  ok: z.literal(true),
-  mode: groupModeSchema,
-  changed: z.boolean(),
-  next: nextGameSchema.optional(),
-  spun: ruleChoiceSchema.optional(),
-});
 
 // ---------------------------------------------------------------------------
 // Rows as anon reads them (Tonight, and its Realtime events)
