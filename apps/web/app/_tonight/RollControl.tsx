@@ -2,11 +2,13 @@
 
 import { type FormEvent, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { LOBBY_ABANDONED } from '@/lib/admin/rerollCopy';
 import { noteThisGame } from '@/lib/mode/clientStore';
 import { groupHome } from '@/lib/nav';
 import { asSentence, ROLL_FAILED, ROLL_LABEL, ROLL_UNREACHABLE } from '@/lib/tonight/copy';
 import { beginTonightPress } from '@/lib/tonight/live';
 import { rollRosterKey } from '@/lib/tonight/state';
+import { THAT_LOBBY_ENDED } from '@/lib/tonight/switcher';
 import type { MemberView } from '@/lib/tonight/types';
 import { usePageGroup } from '../_shell/PageGroup';
 
@@ -37,12 +39,15 @@ export function RollControl({
   members,
   hint = null,
   onSettled,
+  severalLobbies = false,
 }: {
   lobbyId: string;
   members: readonly MemberView[];
   /** One line above the button (`rollAdminHint`): the rotation preview, or the at-ten line. */
   hint?: string | null | undefined;
   onSettled?: (() => void) | undefined;
+  /** M22.6 (14.8): two or more lobbies live, so a lobby that went away says `That lobby has ended.` */
+  severalLobbies?: boolean | undefined;
 }) {
   const group = usePageGroup();
   const [pending, setPending] = useState(false);
@@ -68,7 +73,8 @@ export function RollControl({
       const answeredAt = Date.now();
       const body: unknown = await response.json().catch(() => null);
       if (!response.ok) {
-        setFailed(errorOf(body));
+        const said = errorOf(body);
+        setFailed(severalLobbies && said === asSentence(LOBBY_ABANDONED) ? THAT_LOBBY_ENDED : said);
       } else {
         // M20 D11: Roll redrew a region pair the bans made short; the Mode card says so for this
         // game, in the route's words, until the game starts.

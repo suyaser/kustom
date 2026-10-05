@@ -35,6 +35,8 @@ export type RegionChange = { redraw: true } | { side: 'blue' | 'red'; region: st
 export interface RegionControlsProps {
   target: RegionTarget;
   groupId: string;
+  /** M22.6: the lobby this card writes while two or more are live, else absent. */
+  lobbyId?: string | null | undefined;
   /** The mode route (`ModeControls` owns it: the one place that posts it). */
   action: string;
   redirectTo: string;
@@ -52,6 +54,7 @@ export interface RegionControlsProps {
 export function RegionControls({
   target,
   groupId,
+  lobbyId = null,
   action,
   redirectTo,
   heading,
@@ -76,6 +79,7 @@ export function RegionControls({
               side={side}
               target={target}
               groupId={groupId}
+              lobbyId={lobbyId}
               action={action}
               redirectTo={redirectTo}
               pending={pending === `${side}-${game}`}
@@ -93,6 +97,7 @@ export function RegionControls({
           }}
         >
           <input type="hidden" name="groupId" value={groupId} />
+          {lobbyId === null ? null : <input type="hidden" name="lobbyId" value={lobbyId} />}
           <input type="hidden" name="redirectTo" value={redirectTo} />
           <input type="hidden" name="redraw" value="true" />
           <input type="hidden" name="game" value={game} />
@@ -109,6 +114,7 @@ function SideSelect({
   side,
   target,
   groupId,
+  lobbyId,
   action,
   redirectTo,
   pending,
@@ -118,6 +124,7 @@ function SideSelect({
   side: 'blue' | 'red';
   target: RegionTarget;
   groupId: string;
+  lobbyId: string | null;
   action: string;
   redirectTo: string;
   pending: boolean;
@@ -149,6 +156,7 @@ function SideSelect({
       className="flex flex-col gap-1"
     >
       <input type="hidden" name="groupId" value={groupId} />
+      {lobbyId === null ? null : <input type="hidden" name="lobbyId" value={lobbyId} />}
       <input type="hidden" name="redirectTo" value={redirectTo} />
       <input type="hidden" name="side" value={side} />
       <input type="hidden" name="game" value={target.game} />

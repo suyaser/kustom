@@ -135,7 +135,10 @@ describe('two live tables through the loader (acceptance 2)', () => {
     const two = await read(TWO);
     const shape = (recording: typeof one.recording) =>
       recording.requests.map((request) => `${request.wave} ${request.table}`);
-    expect(shape(two.recording)).toEqual(shape(one.recording));
+    // M22.6: plus the forked lobbies' cards (`lobby_modes`), read in round two, beside the night.
+    const expected = shape(one.recording);
+    expected.splice(expected.indexOf('3 players_public'), 0, '2 lobby_modes');
+    expect(shape(two.recording)).toEqual(expected);
     expect(two.recording.waves()).toBe(3);
   });
 

@@ -343,6 +343,12 @@ values (${literal(discordId)}, ${literal(userId)}, jsonb_build_object('sub', ${l
           row.prefetch === null &&
           new URL(row.url, base).pathname === path,
       );
+    // M22.6: prefetched renders (the lobby chips prefetch the other lobby's page), counted apart.
+    const prefetches = (path: string, from: number, to: number) =>
+      reqs().filter(
+        (row) =>
+          row.t0 >= from && row.t0 < to && row.prefetch !== null && new URL(row.url, base).pathname === path,
+      ).length;
 
     browser = await chromium.launch();
     const context = await browser.newContext({
@@ -370,6 +376,7 @@ values (${literal(discordId)}, ${literal(userId)}, jsonb_build_object('sub', ${l
         step: name,
         renders: seen.length,
         at: seen.map((r) => Math.round(r.t0 - from)),
+        prefetches: prefetches(tonight, from, Date.now()),
       };
       results.push(row);
       windows.push({ row, from, to: Date.now() });
@@ -401,6 +408,7 @@ values (${literal(discordId)}, ${literal(userId)}, jsonb_build_object('sub', ${l
       const row: Record<string, unknown> = {
         step: `tap ${name}`,
         renders: renders(options.path ?? tonight, from, Date.now()).length,
+        prefetches: prefetches(options.path ?? tonight, from, Date.now()),
         pendingAt: at(t.pendOn),
         freeAt: at(t.unpend),
         screenFirst: at(t.change),
@@ -487,6 +495,62 @@ values (${literal(discordId)}, ${literal(userId)}, jsonb_build_object('sub', ${l
       },
       4000,
     );
+
+    // M22.6: a second custom goes live (another host's Kustom, two players): the switcher arrives
+    // with no reload, a chip tap shows that lobby (screenFirst, INP), the tap back, and the second
+    // table ending (the switcher leaves in one paint). After the one-lobby steps, so those are unchanged.
+    const hostToken = mintCompanionToken();
+    const hostRow = await db.from('companion_tokens').insert({
+      player_id: players.data.find((row) => row.puuid === puuids[11])?.id ?? '',
+      token_hash: hostToken.tokenHash,
+      label: 'perf-host-2',
+      group_id: groupId,
+    });
+    if (hostRow.error) throw new Error(`second host token: ${hostRow.error.message}`);
+    const partyTwo = `perf-${slug}-3`;
+    const switcher = async () =>
+      (await page.evaluate('!!document.querySelector("[data-slot=lobby-switcher]")')) as boolean;
+    await step(
+      'second lobby goes live (2 players)',
+      () =>
+        post(
+          'lobby',
+          {
+            partyId: partyTwo,
+            lobbyName: 'perf 2',
+            members: [10, 11].map((index) => ({
+              puuid: puuids[index],
+              gameName: names[index],
+              tagLine: 'EUW',
+              summonerId: 7000 + index,
+              side: 100,
+              isSpectator: false,
+            })),
+          },
+          hostToken.token,
+        ),
+      4000,
+    );
+    (results.at(-1) as Record<string, unknown>).switcher = await switcher();
+    const chip = (current: boolean) =>
+      `nav[aria-label="Lobbies"] a${current ? '[aria-current="page"]' : ':not([aria-current])'}`;
+    const chipOptions = { pending: '[data-never]', mode: 'present' as const, holds: false };
+    // A build before M22.6 (`--web`) has no switcher: the taps are skipped, the rest still runs.
+    if (await switcher()) {
+      await tap('lobby chip (second lobby)', chip(false), '[data-never]', chipOptions);
+      await tap('lobby chip (back to the first)', chip(false), '[data-never]', chipOptions);
+    }
+    await step('second lobby ends', async () => {
+      const ended = await db
+        .from('lobbies')
+        .update({ status: 'abandoned' })
+        .eq('group_id', groupId)
+        .eq('lcu_party_id', partyTwo);
+      if (ended.error) throw new Error(`end second lobby: ${ended.error.message}`);
+      const bumped = await db.rpc('bump_group_live', { p_group: groupId, p_kind: 'lobby' });
+      if (bumped.error) throw new Error(`bump: ${bumped.error.message}`);
+    });
+    (results.at(-1) as Record<string, unknown>).switcher = await switcher();
 
     // Another group's night while this page is open: three lobby posts, the game, its end.
     await step(

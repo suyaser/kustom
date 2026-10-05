@@ -20,14 +20,18 @@ export default async function ModePanelOverlay({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ lane?: string | string[] }>;
+  searchParams: Promise<{ lane?: string | string[]; lobby?: string | string[] }>;
 }) {
-  const [{ slug }, { lane }] = await Promise.all([params, searchParams]);
-  const data = await loadModePanel(slug, lane);
+  const [{ slug }, { lane, lobby }] = await Promise.all([params, searchParams]);
+  const data = await loadModePanel(slug, lane, lobby);
   const headingId = 'mode-panel-title';
 
   return (
-    <ModeOverlay headingId={headingId} title={modeTitle(modeName(data.view.shown))}>
+    <ModeOverlay
+      headingId={headingId}
+      title={modeTitle(modeName(data.view.shown))}
+      lobbyLabel={data.lobby?.label ?? null}
+    >
       <ModePanelBody
         mode={data.mode}
         fearless={data.fearless}
@@ -37,6 +41,7 @@ export default async function ModePanelOverlay({
         viewerSide={data.viewerSide}
         isAdmin={data.isAdmin}
         poolSince={data.poolSince}
+        liveTables={data.liveTables}
         cardHref={modeCardHref(data.group)}
         heading="h2"
         headingId={headingId}

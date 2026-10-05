@@ -8,6 +8,7 @@ import {
   type TonightStateKey,
   tonightStateFixture,
   VIEWER_PUUID,
+  withLobbies,
 } from '@/app/_tonight/fixtures';
 import { TonightView } from '@/app/_tonight/TonightView';
 import { AiRecap } from '@/components/ai/AiRecap';
@@ -116,6 +117,11 @@ export default async function KitTonightPage({
     banregion?: string;
     sit?: string;
     ten?: string;
+    lobbies?: string;
+    sel?: string;
+    other?: string;
+    unwatched?: string;
+    bans?: string;
   }>;
 }) {
   if (process.env.NODE_ENV === 'production') notFound();
@@ -140,6 +146,11 @@ export default async function KitTonightPage({
     banregion,
     sit,
     ten,
+    lobbies,
+    sel,
+    other,
+    unwatched,
+    bans,
   } = await searchParams;
   if (!(TONIGHT_STATES as readonly string[]).includes(state)) notFound();
 
@@ -186,7 +197,20 @@ export default async function KitTonightPage({
   // M21.13: `?sit=blue|red`, the side the client has the viewer on while balanced (`liveSide`);
   // the other side from the split gives `YOU on RED. Move to BLUE to play top.`.
   // M20.14: `?ten=tags`, the Banned next game frames with tagged champions.
-  const paired = withTaggedTen(withViewerSitting(withPairAndBans(fixture, pair, banregion), sit), ten);
+  const tagged = withTaggedTen(withViewerSitting(withPairAndBans(fixture, pair, banregion), sit), ten);
+  // M22.6: `?lobbies=2|3` (14.7's frames), `&sel=1` selects another chip, `&other=balanced|in_game`
+  // is the second lobby's state, `&unwatched=1` the selected lobby has no Kustom any more (14.8).
+  const paired =
+    lobbies === '2' || lobbies === '3'
+      ? withLobbies(tagged, {
+          count: lobbies === '3' ? 3 : 2,
+          selected: Number(sel ?? 0),
+          other: other === 'balanced' || other === 'in_game' ? other : 'open',
+          unwatched: unwatched === '1',
+          now: Date.now(),
+          otherBans: bans === 'other',
+        })
+      : tagged;
   const shown = kitViewer(viewer, paired);
   const group = ORIGINAL_GROUP;
   const live = tonightHeader(tonightState(fixture.snapshot)).live;

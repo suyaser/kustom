@@ -75,6 +75,10 @@ export interface StripProps {
    * Red: Jinx isn't a tank.`), its own row inside the poster, before the viewer's answer row.
    */
   ruleLine?: string | null | undefined;
+  /** M22.6 (14.3): the lobby switcher, a row between the top line and the h1, only while 2+ live. */
+  switcher?: ReactNode;
+  /** M22.6 (14.3): the selected lobby's label, read before the h1 by a screen reader only. */
+  lobbyLabel?: string | null | undefined;
 }
 
 export interface NameStripTeams {
@@ -93,6 +97,8 @@ export function Strip({
   names,
   action,
   ruleLine,
+  switcher,
+  lobbyLabel,
 }: StripProps) {
   return (
     <header className="overflow-hidden rounded-card border border-border bg-card">
@@ -103,7 +109,9 @@ export function Strip({
           <LiveTag lobbyLive={lobbyLive} />
           <span>{dateLine}</span>
         </p>
+        {switcher}
         <h1 className="mt-2 font-display text-display font-black tracking-[-0.01em] text-balance uppercase font-stretch-62%">
+          {lobbyLabel == null ? null : <span className="sr-only">{`${lobbyLabel}: `}</span>}
           {count === null ? headline : `${count} ${headline}`}
         </h1>
         <p className="mt-2 min-h-[2.9em] text-sm text-muted-foreground">{sub}</p>

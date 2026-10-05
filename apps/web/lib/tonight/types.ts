@@ -5,6 +5,7 @@ import type { StoredSplit } from '@/components/receipt/types';
 import type { FearlessView } from '../fearless/types';
 import type { GameStampView } from '../mode/types';
 import type { NightClock } from '../night';
+import type { LobbyCard } from './cards';
 
 /**
  * What the tonight page knows (M3.4). One snapshot, loaded on the server for the first paint
@@ -300,6 +301,11 @@ export interface TableView {
    * the tile the tape shows while **another** table is selected (14.6).
    */
   tile: TapeEntry | null;
+  /**
+   * M22.6: the table's own card when it is forked (`lobby_modes`, `./cards.ts`): its pending rule,
+   * pair and Rated; the standing mode stays the snapshot's. Null or absent: the group's card.
+   */
+  card?: LobbyCard | null | undefined;
 }
 
 export interface TonightSnapshot {
@@ -420,6 +426,11 @@ export interface TapeEntry {
   rank: number | null;
   /** Members who were not in the chosen split's ten, in join order. `TeamsView.sitters`' rule. */
   sitters: PlayerName[];
+  /**
+   * M22.6 (05-design.md 14.6): the first reporter of the tile's table, only on a night two tables
+   * overlapped; the tile names its lobby after them. Absent: no lobby line (every one-lobby night).
+   */
+  tableHost?: PlayerName | undefined;
 }
 
 /**

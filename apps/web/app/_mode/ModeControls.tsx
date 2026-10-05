@@ -86,9 +86,10 @@ import {
   THIS_GAME_HEADING,
   TOO_FEW_OPEN,
 } from '@/lib/mode/ruleCopy';
-import { NOTHING_TO_SPIN, RULE_TOO_FEW_OPEN } from '@/lib/mode/ruleNotices';
+import { NOTHING_TO_SPIN, PICK_A_LOBBY_FIRST, RULE_TOO_FEW_OPEN } from '@/lib/mode/ruleNotices';
 import { SPIN_BROADCAST_EVENT, SPIN_CYCLE_MS, SPIN_REVEAL_EVENT, SPIN_WAIT_MS } from '@/lib/mode/spinEvents';
 import { beginTonightPress, requestTonightRefresh } from '@/lib/tonight/live';
+import { resetBodyLobbies, THAT_LOBBY_ENDED } from '@/lib/tonight/switcher';
 import { cn } from '@/lib/utils';
 import { type RegionChange, RegionControls } from './RegionControls';
 
@@ -182,6 +183,16 @@ export interface ModeControlsProps {
    * from a write this page did not make, the page's own outcome line goes. Absent: never.
    */
   card?: CardMark | undefined;
+  /**
+   * M22.6: while two or more lobbies are live, the lobby this card writes (`lobbyId` in every mode
+   * body and no-JS form), its client store key (`modeCardKey`), and the foot's sentence under the
+   * picker (14.5). Absent with one lobby: today's bodies, keys and foot.
+   */
+  lobbyId?: string | null | undefined;
+  storeKey?: string | undefined;
+  lobbyNote?: string | null | undefined;
+  /** M22.6: live lobbies, for the Reset dialog's `in both lobbies` (14.11). Default one. */
+  lobbyCount?: number | undefined;
 }
 
 /** This game's values for the controls while the lobby is balanced (M20.18). */
@@ -211,12 +222,16 @@ export function ModeControls({
   regions,
   statusShowsNext = false,
   card,
+  lobbyId = null,
+  storeKey = groupId,
+  lobbyNote = null,
+  lobbyCount = 1,
 }: ModeControlsProps) {
   const selectId = useId();
   const sentenceId = useId();
   const ratedSentenceId = useId();
   const [hydrated, setHydrated] = useState(false);
-  const [controls, dispatch] = useControls(groupId);
+  const [controls, dispatch] = useControls(storeKey);
   const selectRef = useRef<HTMLSelectElement>(null);
   const statusRef = useRef<HTMLParagraphElement>(null);
 
@@ -257,7 +272,7 @@ export function ModeControls({
     // M20.18: likewise this game's lock (rule, standing, Rated): moved to another lock than the line's.
     const lockMoved = cardLock !== seenLock.current;
     seenLock.current = cardLock;
-    const now = controlsOf(groupId);
+    const now = controlsOf(storeKey);
     if (now.pending !== null) return;
     if (now.said === null) {
       // A no-JS post's `?notice=` is this page's line too, said for the card the page loaded with.
@@ -308,25 +323,29 @@ export function ModeControls({
       }
     | { ok: false; status: number; error: string | null }
   > {
-    const token = optimistic === null ? null : beginOptimistic(groupId, optimistic);
+    const token = optimistic === null ? null : beginOptimistic(storeKey, optimistic);
     const done = () => {
-      if (token !== null) endOptimistic(groupId, token);
+      if (token !== null) endOptimistic(storeKey, token);
     };
     try {
       const response = await fetch(MODE_ACTION, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ groupId, ...body }),
+        body: JSON.stringify({ groupId, ...(lobbyId === null ? {} : { lobbyId }), ...body }),
       });
       if (!response.ok) {
         // A 409 carries M20.1's words for the refusal; nothing else is shown as is.
         const body: unknown = response.status === 409 ? await response.json().catch(() => null) : null;
-        const error =
+        const said =
           typeof body === 'object' && body !== null && 'error' in body && typeof body.error === 'string'
             ? body.error
             : null;
+        // M22.6 (14.8): a card that named its lobby and is told to pick one wrote to a lobby that
+        // has just ended: say so, and re-read the page for the lobbies that are left.
+        const ended = lobbyId !== null && said === PICK_A_LOBBY_FIRST;
+        if (ended) void requestTonightRefresh();
         done();
-        return { ok: false, status: response.status, error };
+        return { ok: false, status: response.status, error: ended ? THAT_LOBBY_ENDED : said };
       }
       const parsed = setGroupModeResponseSchema.safeParse(await response.json().catch(() => null));
       if (!parsed.success) {
@@ -344,7 +363,7 @@ export function ModeControls({
       }
       const { state, notice, spun, thisGame } = parsed.data;
       // The answer first, then the tap goes: the card never flashes back to the old state.
-      applyModeRow(groupId, {
+      applyModeRow(storeKey, {
         row: { standing: state.standing, pending: state.pending, rated: state.rated },
         updatedAt: state.updatedAt,
       });
@@ -354,7 +373,7 @@ export function ModeControls({
           ? null
           : { standing: thisGame.standing, mode: thisGame.mode as Mode, rated: thisGame.rated };
       if (thisGame !== undefined && lock !== null)
-        applyLockAnswer(groupId, { lobbyId: thisGame.lobbyId, lock });
+        applyLockAnswer(storeKey, { lobbyId: thisGame.lobbyId, lock });
       done();
       const thisPair = thisGame?.mode.id === 'region' ? `${thisGame.mode.blue}|${thisGame.mode.red}` : null;
       return {
@@ -392,7 +411,7 @@ export function ModeControls({
 
   /** Starts a write unless one is in flight (a double tap posts once). */
   function begin(write: ControlsWrite): boolean {
-    if (controlsOf(groupId).pending !== null) return false;
+    if (controlsOf(storeKey).pending !== null) return false;
     dispatch({ type: 'start', write });
     return true;
   }
@@ -415,7 +434,7 @@ export function ModeControls({
 
   async function spin(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
-    if (controlsOf(groupId).spinUntil !== null || !begin('spin')) return;
+    if (controlsOf(storeKey).spinUntil !== null || !begin('spin')) return;
     const result = await post({ spin: true, ...target });
     if (!result.ok) {
       dispatch({ type: 'refused', failed: refusal(result, NOTHING_TO_SPIN, forThis) });
@@ -503,6 +522,7 @@ export function ModeControls({
       <RegionControls
         target={pair}
         groupId={groupId}
+        lobbyId={lobbyId}
         action={MODE_ACTION}
         redirectTo={redirectTo}
         // After Roll the foot can hold two pairs: each says which. In game (8.3.1) only this game's
@@ -524,7 +544,12 @@ export function ModeControls({
       />
     );
   /** No-JS posts name the game too (M20.18): balanced, every picker, Spin and Rated form is this game's. */
-  const gameInput = forThis ? <input type="hidden" name="game" value="this" /> : null;
+  const gameInput = (
+    <>
+      {forThis ? <input type="hidden" name="game" value="this" /> : null}
+      {lobbyId === null ? null : <input type="hidden" name="lobbyId" value={lobbyId} />}
+    </>
+  );
 
   const picker = (
     <form
@@ -578,6 +603,11 @@ export function ModeControls({
       <p id={sentenceId} className="text-xs text-muted-foreground empty:hidden">
         {sentence}
       </p>
+      {lobbyNote === null ? null : (
+        <p data-slot="mode-lobby-note" className="text-xs text-muted-foreground">
+          {lobbyNote}
+        </p>
+      )}
     </form>
   );
 
@@ -626,6 +656,7 @@ export function ModeControls({
   const reset =
     mode === 'fearless' && banned > 0 ? (
       <ResetFearless
+        lobbyCount={lobbyCount}
         groupId={groupId}
         banned={banned}
         confirmHref={resetConfirmHref}
@@ -699,6 +730,8 @@ export function ModeControls({
  */
 function refusal(result: { status: number; error: string | null }, fallback: string, words: boolean): string {
   if (result.status !== 409) return MODE_CHANGE_FAILED;
+  // M22.6 (14.8): which lobby the write was for is always said, whatever the target.
+  if (result.error === THAT_LOBBY_ENDED || result.error === PICK_A_LOBBY_FIRST) return result.error;
   return words ? (result.error ?? fallback) : fallback;
 }
 
@@ -718,6 +751,7 @@ function regionPairOf(pending: PendingRule | null): { blue?: string; red?: strin
 }
 
 function ResetFearless({
+  lobbyCount,
   groupId,
   banned,
   confirmHref,
@@ -726,6 +760,7 @@ function ResetFearless({
 }: {
   groupId: string;
   banned: number;
+  lobbyCount: number;
   confirmHref: string;
   onSaid: (line: string) => void;
   /** After a reset the dialog closes onto the outcome line, not its trigger (gone with the bans). */
@@ -805,7 +840,9 @@ function ResetFearless({
       >
         <AlertDialogHeader>
           <AlertDialogTitle>{FEARLESS_RESET_TITLE}</AlertDialogTitle>
-          <AlertDialogDescription>{fearlessResetBody(banned)}</AlertDialogDescription>
+          <AlertDialogDescription>
+            {lobbyCount >= 2 ? resetBodyLobbies(banned, lobbyCount) : fearlessResetBody(banned)}
+          </AlertDialogDescription>
         </AlertDialogHeader>
         {error === null ? null : (
           <p role="alert" className="text-sm text-destructive">

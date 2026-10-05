@@ -1,7 +1,8 @@
-import type { Metadata } from 'next';
+import type { Metadata, Route } from 'next';
 import Link from 'next/link';
 import { loadModePanel } from '@/app/_mode/loadPanel';
 import { ModePanelBody } from '@/app/_mode/ModePanelBody';
+import { LobbyLabelText } from '@/app/_tonight/LobbyLabelText';
 import { requirePageGroup } from '@/lib/groups/requirePageGroup';
 import { MODE_NAMES, PANEL_CRUMB_TONIGHT } from '@/lib/mode/copy';
 import { modeCardHref } from '@/lib/mode/hrefs';
@@ -22,7 +23,7 @@ export const dynamic = 'force-dynamic';
 
 interface ModePageProps {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ lane?: string | string[] }>;
+  searchParams: Promise<{ lane?: string | string[]; lobby?: string | string[] }>;
 }
 
 export async function generateMetadata({ params }: ModePageProps): Promise<Metadata> {
@@ -35,8 +36,8 @@ export async function generateMetadata({ params }: ModePageProps): Promise<Metad
 }
 
 export default async function ModePage({ params, searchParams }: ModePageProps) {
-  const [{ slug }, { lane }] = await Promise.all([params, searchParams]);
-  const data = await loadModePanel(slug, lane);
+  const [{ slug }, { lane, lobby }] = await Promise.all([params, searchParams]);
+  const data = await loadModePanel(slug, lane, lobby);
 
   return (
     <div className="mx-auto w-full max-w-[1180px] px-(--gutter) pt-4 pb-8 lg:pt-6">
@@ -44,11 +45,23 @@ export default async function ModePage({ params, searchParams }: ModePageProps) 
         <span className="[overflow-wrap:anywhere]">{data.group.name}</span>
         <span aria-hidden="true">{' · '}</span>
         <Link
-          href={groupHome(data.group)}
+          href={
+            data.lobby === null
+              ? groupHome(data.group)
+              : (`${groupHome(data.group)}?lobby=${data.lobby.id}` as Route)
+          }
           className="inline-flex min-h-11 items-center underline underline-offset-3"
         >
           {PANEL_CRUMB_TONIGHT}
         </Link>
+        {data.lobby === null ? null : (
+          <>
+            <span aria-hidden="true">{' · '}</span>
+            <span className="min-w-0 [overflow-wrap:break-word]">
+              <LobbyLabelText label={data.lobby.label} />
+            </span>
+          </>
+        )}
       </nav>
       <div className="rounded-card border border-border bg-card p-(--card-pad)">
         <ModePanelBody
@@ -60,6 +73,7 @@ export default async function ModePage({ params, searchParams }: ModePageProps) 
           viewerLane={data.viewerLane}
           isAdmin={data.isAdmin}
           poolSince={data.poolSince}
+          liveTables={data.liveTables}
           cardHref={modeCardHref(data.group)}
           heading="h1"
           headingId="mode-panel-title"

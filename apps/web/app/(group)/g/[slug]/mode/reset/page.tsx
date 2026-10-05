@@ -10,9 +10,12 @@ import {
 } from '@/lib/fearless/copy';
 import { loadFearless } from '@/lib/fearless/load';
 import { requirePageGroup } from '@/lib/groups/requirePageGroup';
+import { loadTonightLobbyLock } from '@/lib/mode/tonightRead';
 import { fearlessCounts } from '@/lib/mode/view';
 import { groupHome } from '@/lib/nav';
 import { createPublicClient } from '@/lib/publicClient';
+import { tonightStart } from '@/lib/tonight/night';
+import { resetBodyLobbies } from '@/lib/tonight/switcher';
 import { cn } from '@/lib/utils';
 import { currentViewerState } from '@/lib/viewer';
 
@@ -35,7 +38,13 @@ export default async function ResetFearlessConfirm({ params }: { params: Promise
   const viewer = await currentViewerState(group.id);
   if (viewer.kind !== 'linked' || !viewer.isAdmin) notFound();
 
-  const pool = await loadFearless(createPublicClient(), group.id);
+  const client = createPublicClient();
+  // M22.6 (14.11): with two or more lobbies live, the question names them all.
+  const [pool, lobby] = await Promise.all([
+    loadFearless(client, group.id),
+    loadTonightLobbyLock(client, group.id, tonightStart()),
+  ]);
+  const lobbies = lobby?.liveTables ?? 0;
   const banned = fearlessCounts(pool).banned;
   const tonight = groupHome(group);
 
@@ -48,7 +57,9 @@ export default async function ResetFearlessConfirm({ params }: { params: Promise
         <h1 id="reset-title" className="text-xl font-bold">
           {FEARLESS_RESET_TITLE}
         </h1>
-        <p className="text-base text-muted-foreground">{fearlessResetBody(banned)}</p>
+        <p className="text-base text-muted-foreground">
+          {lobbies >= 2 ? resetBodyLobbies(banned, lobbies) : fearlessResetBody(banned)}
+        </p>
         <div className="flex flex-col gap-3 md:flex-row-reverse md:justify-start">
           <form method="post" action="/api/admin/fearless/reset">
             <input type="hidden" name="groupId" value={group.id} />
