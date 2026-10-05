@@ -53,6 +53,7 @@ export function gameDetailFixture(overrides: Partial<GameDetailView> = {}): Game
       kind: 'rolled',
       splits: THREE_SPLITS,
       chosen: THREE_SPLITS[0] as (typeof THREE_SPLITS)[number],
+      swapped: false,
     },
     names: FIXTURE_NAMES,
     calibration: CALIBRATION_READY,

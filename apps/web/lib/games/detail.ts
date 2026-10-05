@@ -8,6 +8,7 @@ import { rawFactsFromUnknown } from '../stats/rawFacts';
 import type { StatsGame, StatsPlayer } from '../stats/types';
 import { renderWebName } from '../tonight/copy';
 import { formatMinutes } from './duration';
+import { readKickoffs } from './kickoffs';
 import { gameModeFromRaw, matchesQueue } from './queue';
 import {
   readGroupCalibration,
@@ -90,7 +91,7 @@ export async function loadGameDetail(
   const winningSide: 100 | 200 = game.winning_side;
   if (rows.length === 0) return null;
 
-  const [runs, players] = await Promise.all([
+  const [runs, players, kickoffs] = await Promise.all([
     game.lobby_id === null
       ? Promise.resolve(new Map<string, StoredSplit[]>())
       : readSplitRuns(client, [game.lobby_id]),
@@ -98,6 +99,7 @@ export async function loadGameDetail(
       client,
       rows.map((row) => row.playerId),
     ),
+    readKickoffs(client, game.lobby_id === null ? [] : [game.lobby_id]),
   ]);
   const run = game.lobby_id === null ? [] : (runs.get(game.lobby_id) ?? []);
 
@@ -168,6 +170,7 @@ export async function loadGameDetail(
       rBefore: row.rBefore,
     })),
     splits: run,
+    kickoff: game.lobby_id === null ? null : (kickoffs.get(game.lobby_id) ?? null),
   });
 
   const names: Record<string, string> = {};

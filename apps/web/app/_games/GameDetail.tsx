@@ -143,7 +143,8 @@ function GameReceipt({
       <PreGameReceipt
         reason={receipt.reason}
         ratingsBefore={receipt.ratingsBefore}
-        ratingBlueWinProb={odds?.ratingBlueWinProb ?? null}
+        // M21.7: the kickoff record's odds first (the number shown while the game was on).
+        ratingBlueWinProb={receipt.kickoffBlueWinProb ?? odds?.ratingBlueWinProb ?? null}
         winner={game.winningSide}
         rolled={receipt.rolled === null ? undefined : { splits: receipt.rolled, names: game.names }}
         calibration={game.calibration}

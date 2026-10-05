@@ -1312,6 +1312,10 @@ function mostPicked(plays: readonly Play[]): FunSection<FunChampRow> {
  * Nothing below reads `rBefore` or `rAfter`. It reads results, so an unrated game — an ARAM
  * night, a backfilled custom the fold has not folded — is as eligible as any other, provided its
  * lobby stored a chosen split. Most do not, which is why the section is thin and says so.
+ *
+ * M21.7: the loader hands each game the odds of the teams that played (`postedOdds` in
+ * `lib/games/receipt.ts`): the split's when its teams played (flipped on swapped sides), the
+ * pre-game odds when they changed after the roll (none for a not-rated or ARAM game then).
  * ------------------------------------------------------------------------- */
 
 /** One win a side was not expected to get, with the seat that got it. */

@@ -1,6 +1,6 @@
 import type { Calibration, Mode } from '@customs/core';
 import type { RoleValue } from '@customs/db';
-import { ruleModeOf } from '@customs/db/schemas';
+import { type LobbyKickoff, ruleModeOf } from '@customs/db/schemas';
 import type { RatingsBefore } from '@/components/receipt/types';
 import { championLabel } from '../champs/names';
 import { ruleRowNote } from '../mode/rowNote';
@@ -13,6 +13,7 @@ import { kdaLine } from '../stats/funCopy';
 import { renderWebName } from '../tonight/copy';
 import { formatMinutes } from './duration';
 import { GAMES_PAGE_SIZE, type GamesFilters, gamesRange, pageCount } from './filters';
+import { readKickoffs } from './kickoffs';
 import { gameModeFromRaw, matchesQueue } from './queue';
 import {
   type PlayerRef,
@@ -39,7 +40,8 @@ export interface GamesMember {
 /** The compact receipt's input for one row, or `null` for no odds (the component prints nothing). */
 export type CompactOdds =
   | { kind: 'rolled'; blueWinProb: number; rank: number }
-  | { kind: 'pre-game'; ratingsBefore: RatingsBefore }
+  /** `kickoffBlueWinProb` (M21.7): the kickoff record's odds when its teams are the eog's, else `null`. */
+  | { kind: 'pre-game'; ratingsBefore: RatingsBefore; kickoffBlueWinProb: number | null }
   | null;
 
 export interface GameRowLine {
@@ -391,15 +393,14 @@ async function assembleItems(
   },
 ): Promise<GameListItem[]> {
   if (games.length === 0) return [];
-  const [rows, runs] = await Promise.all([
+  const lobbyIds = games.map((game) => game.lobbyId).filter((id): id is string => id !== null);
+  const [rows, runs, kickoffs] = await Promise.all([
     readScoreRows(
       client,
       games.map((game) => game.id),
     ),
-    readSplitRuns(
-      client,
-      games.map((game) => game.lobbyId).filter((id): id is string => id !== null),
-    ),
+    readSplitRuns(client, lobbyIds),
+    readKickoffs(client, lobbyIds),
   ]);
   // Nearly everybody on a scoreboard is already in the select's roster; read only who is not.
   const members = await membersRead;
@@ -423,6 +424,7 @@ async function assembleItems(
       players,
       game.lobbyId === null ? [] : (runs.get(game.lobbyId) ?? []),
       { ...options, viewerPuuid },
+      game.lobbyId === null ? null : (kickoffs.get(game.lobbyId) ?? null),
     ),
   );
 }
@@ -434,6 +436,7 @@ export function gameListItemOf(
   players: ReadonlyMap<string, PlayerRef>,
   run: Parameters<typeof gameReceiptOf>[0]['splits'],
   options: { viewerPuuid: string | null; focusPuuid: string | null; timeZone: string },
+  kickoff: LobbyKickoff | null = null,
 ): GameListItem {
   const seats = rows.map((row) => ({
     row,
@@ -450,12 +453,17 @@ export function gameListItemOf(
       rBefore: row.rBefore,
     })),
     splits: run,
+    kickoff,
   });
   const odds: CompactOdds =
     receipt.kind === 'rolled'
       ? { kind: 'rolled', blueWinProb: receipt.chosen.blueWinProb, rank: receipt.chosen.rank }
       : receipt.kind === 'pre-game'
-        ? { kind: 'pre-game', ratingsBefore: receipt.ratingsBefore }
+        ? {
+            kind: 'pre-game',
+            ratingsBefore: receipt.ratingsBefore,
+            kickoffBlueWinProb: receipt.kickoffBlueWinProb,
+          }
         : null;
 
   const lines: GameRowLine[] = [];

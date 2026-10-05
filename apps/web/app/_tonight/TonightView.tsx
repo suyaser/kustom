@@ -27,6 +27,7 @@ import { bannedByGame, normalJustNow, normalNoteFactsOf } from '@/lib/mode/view'
 import type { MysteryPageState } from '@/lib/mystery/service';
 import { groupHome, groupHref } from '@/lib/nav';
 import { displayDelta } from '@/lib/ratingDisplay';
+import { NO_ODDS } from '@/lib/receipt/copy';
 import {
   adminNames,
   MISSED_INVITE_END,
@@ -43,13 +44,11 @@ import type { LobbyStartView } from '@/lib/tonight/lobbyStart';
 import { tonightRoles } from '@/lib/tonight/roles';
 import {
   announcement,
-  chosenSplit,
   gameNumber,
   noMainCount,
   offRoleSeats,
-  playedAsRolled,
-  ratingsBefore,
   receiptNames,
+  resultReceipt,
   viewerSeat,
 } from '@/lib/tonight/screen';
 import {
@@ -642,12 +641,54 @@ function Teams({
   const inGame = lobby.status === 'in_game';
   const finishedWinner = lobby.status === 'finished' ? (lobby.result?.winningSide ?? null) : null;
 
+  // M21.7: a finished game the fold did not rate (a remake) shows the teams that played. The bot's
+  // teams keep its receipt (turned round on swapped sides); changed teams get the scoreboard's
+  // sides and pre-game odds (or none), never the split's teams under the split's odds.
+  const played = finishedWinner !== null && lobby.result !== null ? resultReceipt(lobby.result, teams) : null;
+  const swapped = played?.kind === 'rolled' && played.swapped;
+  const changed = played !== null && played.kind !== 'rolled' && lobby.result !== null;
+  const playedSeats = (side: 100 | 200): TeamSeat[] =>
+    (side === 100 ? (lobby.result?.blue ?? []) : (lobby.result?.red ?? [])).map((one) => ({
+      puuid: one.puuid,
+      name: one.name,
+      nameSuffix: one.nameSuffix ?? null,
+      role: one.role,
+      rating: members.get(one.puuid)?.rating ?? null,
+      offRole: false,
+      ratedGames: members.get(one.puuid)?.ratedGames ?? null,
+    }));
+  const blueSeats = changed
+    ? playedSeats(100)
+    : (swapped ? teams.red : teams.blue).map((one) => teamSeat(one, members));
+  const redSeats = changed
+    ? playedSeats(200)
+    : (swapped ? teams.blue : teams.red).map((one) => teamSeat(one, members));
+  const viewerSide =
+    viewerPuuid === null
+      ? null
+      : blueSeats.some((one) => one.puuid === viewerPuuid)
+        ? 'blue'
+        : redSeats.some((one) => one.puuid === viewerPuuid)
+          ? 'red'
+          : null;
+
   const receipt =
-    finishedWinner !== null ? (
+    finishedWinner !== null && played?.kind === 'pre-game' ? (
+      <PreGameReceipt
+        ratingsBefore={played.ratingsBefore}
+        ratingBlueWinProb={played.kickoffBlueWinProb}
+        reason={played.reason}
+        winner={finishedWinner}
+        rolled={played.rolled === null ? undefined : { splits: played.rolled, names }}
+        calibration={calibration}
+      />
+    ) : finishedWinner !== null && played?.kind === 'none' ? (
+      <p className="text-sm text-muted-foreground">{NO_ODDS}</p>
+    ) : finishedWinner !== null ? (
       <FairnessReceipt
         variant="finished"
         winner={finishedWinner}
-        splits={teams.stored}
+        splits={played?.kind === 'rolled' ? played.splits : teams.stored}
         names={names}
         noMain={noMainCount(teams, members)}
         calibration={calibration}
@@ -674,16 +715,20 @@ function Teams({
       <div className="grid gap-4 md:grid-cols-2 md:gap-5">
         <TeamCard
           side="blue"
-          seats={teams.blue.map((one) => teamSeat(one, members))}
+          seats={blueSeats}
           viewerPuuid={viewerPuuid}
-          className={seat?.side === 'blue' ? 'order-first md:order-none' : undefined}
+          className={
+            (played === null ? seat?.side : viewerSide) === 'blue' ? 'order-first md:order-none' : undefined
+          }
           group={group}
         />
         <TeamCard
           side="red"
-          seats={teams.red.map((one) => teamSeat(one, members))}
+          seats={redSeats}
           viewerPuuid={viewerPuuid}
-          className={seat?.side === 'red' ? 'order-first md:order-none' : undefined}
+          className={
+            (played === null ? seat?.side : viewerSide) === 'red' ? 'order-first md:order-none' : undefined
+          }
           group={group}
         />
       </div>
@@ -828,7 +873,6 @@ function Result({
 }) {
   const odds = breakdown?.odds ?? null;
   const names = receiptNames(lobby, result);
-  const chosen = teams === null ? null : chosenSplit(teams.stored);
   const members = new Map(lobby.members.map((member) => [member.puuid, member]));
   const notRated = result.stamp?.rift === true && !result.stamp.rated;
   const seats = (side: ResultView['blue']): TeamSeat[] =>
@@ -850,14 +894,17 @@ function Result({
       reason: breakdown?.reasons.get(seat.puuid) ?? null,
     }));
 
+  // M21.7: the game page's rule (`gameReceiptOf`): the bot's receipt when its teams played (turned
+  // round on swapped sides), pre-game odds when they changed, nothing for a not-rated changed game.
+  const played = resultReceipt(result, teams);
   const receipt =
-    teams !== null && chosen !== null && playedAsRolled(result, chosen) ? (
+    played.kind === 'rolled' && teams !== null ? (
       <FairnessReceipt
         variant="finished"
         winner={result.winningSide}
         // M14.45: the strip's `RED WINS` already names the winner; the poster says the odds only.
         winnerShown
-        splits={teams.stored}
+        splits={played.splits}
         names={names}
         // Lead ruling (M14.41 design round 1): Tonight's poster counts main roles the way the
         // balanced receipt did minutes earlier. The game page and history print the stored count.
@@ -865,16 +912,18 @@ function Result({
         calibration={calibration}
         oddsGap={odds === null ? null : oddsGapSentence(odds, result.winningSide)}
       />
-    ) : (
+    ) : played.kind === 'pre-game' ? (
       <PreGameReceipt
-        ratingsBefore={ratingsBefore(result)}
-        ratingBlueWinProb={odds?.ratingBlueWinProb ?? null}
-        reason={teams === null ? 'no-split' : 'teams-changed'}
+        ratingsBefore={played.ratingsBefore}
+        ratingBlueWinProb={played.kickoffBlueWinProb ?? odds?.ratingBlueWinProb ?? null}
+        reason={played.reason}
         winner={result.winningSide}
         winnerShown
-        rolled={teams === null ? undefined : { splits: teams.stored, names }}
+        rolled={played.rolled === null ? undefined : { splits: played.rolled, names }}
         calibration={calibration}
       />
+    ) : (
+      <p className="text-sm text-muted-foreground">{NO_ODDS}</p>
     );
 
   return (
