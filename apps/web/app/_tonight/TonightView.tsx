@@ -19,7 +19,12 @@ import {
 import { championTable } from '@/lib/mode/champions';
 import type { ModeSlice } from '@/lib/mode/clientStore';
 import { MODE_ANSWER_LINK_ID, modePanelHref } from '@/lib/mode/hrefs';
-import { MIRROR_HOST_FILLING_REST, MIRROR_HOST_LEAD, MIRROR_HOST_IDLE_REST, ruleLaneLabel } from '@/lib/mode/ruleCopy';
+import {
+  MIRROR_HOST_FILLING_REST,
+  MIRROR_HOST_IDLE_REST,
+  MIRROR_HOST_LEAD,
+  ruleLaneLabel,
+} from '@/lib/mode/ruleCopy';
 import type { ModeSpeech } from '@/lib/mode/speech';
 import { missingRow } from '@/lib/mode/state';
 import { bannedByGame, normalNoteFactsOf } from '@/lib/mode/view';
@@ -553,7 +558,9 @@ function stripAction(
   // M14.66: on idle with no host seen in ten minutes, who to ask (linked players only).
   if (state.kind === 'idle' && viewer.linked && !viewer.emptyGroup && !props.snapshot.hostSeenRecently) {
     return (
-      <p className="text-sm text-muted-foreground">{noKustomRunningLine(adminNames(props.snapshot.hostNames))}</p>
+      <p className="text-sm text-muted-foreground">
+        {noKustomRunningLine(adminNames(props.snapshot.hostNames))}
+      </p>
     );
   }
   return null;

@@ -96,4 +96,3 @@ export function hostPresenceFrom(facts: HostFacts, now: Date = new Date()): Host
     hostSeenRecently: facts.lastSeen.some((seen) => seen !== null && Date.parse(seen) >= at - HOST_WINDOW_MS),
   };
 }
-

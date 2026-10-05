@@ -436,7 +436,10 @@ if (stack === null) {
       const handed = ((await viaB.json()) as { commands: { id: string }[] }).commands;
       expect(handed.map((command) => command.id)).toEqual([queued.data?.id]);
 
-      await db.from('companion_commands').delete().eq('id', queued.data?.id ?? '');
+      await db
+        .from('companion_commands')
+        .delete()
+        .eq('id', queued.data?.id ?? '');
     });
   });
 

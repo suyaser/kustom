@@ -13,7 +13,20 @@ import { describe, expect, it } from 'vitest';
 
 const FORBIDDEN = [['Start', 'a', 'lobby'].join(' '), ['', 'api', 'me', 'lobbies', 'start'].join('/')];
 
-const TEXT = new Set(['.ts', '.tsx', '.js', '.mjs', '.cjs', '.json', '.md', '.css', '.snap', '.txt', '.yml', '.yaml']);
+const TEXT = new Set([
+  '.ts',
+  '.tsx',
+  '.js',
+  '.mjs',
+  '.cjs',
+  '.json',
+  '.md',
+  '.css',
+  '.snap',
+  '.txt',
+  '.yml',
+  '.yaml',
+]);
 
 const WEB_ROOT = fileURLToPath(new URL('..', import.meta.url));
 

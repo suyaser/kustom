@@ -9,7 +9,12 @@ import { modeCardView } from '@/lib/mode/card';
 import { championTable, regionIds } from '@/lib/mode/champions';
 import { applyModeRow, noteThisGame, resetModeStoreForTests } from '@/lib/mode/clientStore';
 import { MODE_NOW_NORMAL_BODY } from '@/lib/mode/copy';
-import { MIRROR_HOST_FILLING_LINE, MIRROR_HOST_IDLE_LINE, MIRROR_HOST_LEAD, mirrorStatus } from '@/lib/mode/ruleCopy';
+import {
+  MIRROR_HOST_FILLING_LINE,
+  MIRROR_HOST_IDLE_LINE,
+  MIRROR_HOST_LEAD,
+  mirrorStatus,
+} from '@/lib/mode/ruleCopy';
 import { fearlessCounts } from '@/lib/mode/view';
 import { seatedOnTheirSides } from '@/lib/testing/tonightFixtures';
 import { Announcer } from '../_tonight/Announcer';
@@ -231,7 +236,9 @@ describe('region wars and mirror match', () => {
     const idle = draw('idle', { rule: 'mirror' });
     expect(screen.getByText(MIRROR_HOST_LEAD, { selector: 'b' })).toBeInTheDocument();
     expect(document.body.textContent).toContain(MIRROR_HOST_IDLE_LINE);
-    expect(document.body.textContent).toContain('Mirror match next. The host opens a Blind Pick custom in League.');
+    expect(document.body.textContent).toContain(
+      'Mirror match next. The host opens a Blind Pick custom in League.',
+    );
     expect(document.body.textContent).not.toContain(MIRROR_HOST_FILLING_LINE);
     idle.unmount();
     const finished = draw('finished', { rule: 'mirror' });

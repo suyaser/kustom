@@ -24,7 +24,6 @@ import { roleTonightRoute } from './role-tonight/handler';
 const { invalidateGroup } = vi.hoisted(() => ({ invalidateGroup: vi.fn() }));
 vi.mock('@/lib/cache/tags', () => ({ invalidateGroup, invalidateGroups: vi.fn() }));
 
-
 /**
  * The `/api/me/*` routes: the third route class (a session with a linked player, scoped to the
  * body's group since M13.4), end to end through the real zod schemas and the real rules, with the
