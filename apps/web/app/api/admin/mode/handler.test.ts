@@ -289,7 +289,9 @@ describe('POST /api/admin/mode: region wars is drawn when it is chosen (M20 D9)'
     }
     // A form post goes back with the same words.
     const { mode } = setup(card(), { liveLock: regionLock('balanced', region) });
-    const response = await mode(form({ groupId: GROUP, redraw: 'true', game: 'next', redirectTo: '/g/crew' }));
+    const response = await mode(
+      form({ groupId: GROUP, redraw: 'true', game: 'next', redirectTo: '/g/crew' }),
+    );
     expect(noticeOf(response).get('error')).toBe(rolled);
   });
 

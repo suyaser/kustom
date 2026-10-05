@@ -54,7 +54,9 @@ function route() {
 
 const outcome = (page: HTMLElement) => page.querySelector('[data-slot="mode-outcome"]') as HTMLElement;
 const status = (page: HTMLElement) =>
-  within(page).getByRole('region', { name: /^Mode / }).querySelector('a') as HTMLElement;
+  within(page)
+    .getByRole('region', { name: /^Mode / })
+    .querySelector('a') as HTMLElement;
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -137,7 +139,7 @@ describe("M20.15: another admin's later write clears this page's notice", () => 
   });
 
   it("this game's pair: the page's own `New regions` stays through its re-read; another admin's pair clears it", async () => {
-    const NEW = "New regions: Shurima vs Zaun. Picks already made stay, and the check uses the new regions.";
+    const NEW = 'New regions: Shurima vs Zaun. Picks already made stay, and the check uses the new regions.';
     vi.stubGlobal(
       'fetch',
       vi.fn(
@@ -200,7 +202,10 @@ describe("M20.15: another admin's later write clears this page's notice", () => 
           ({
             ok: false,
             status: 409,
-            json: async () => ({ ok: false, error: "Teams were just rolled, so those regions are this game's now." }),
+            json: async () => ({
+              ok: false,
+              error: "Teams were just rolled, so those regions are this game's now.",
+            }),
           }) as Response,
       ),
     );

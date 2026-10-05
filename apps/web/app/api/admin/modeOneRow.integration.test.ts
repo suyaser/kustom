@@ -279,7 +279,11 @@ if (stack === null) {
             ok: false,
             error: "Teams were just rolled, so those regions are this game's now.",
           });
-          expect(lock).toMatchObject({ lock_rule: 'region', lock_region_blue: 'zaun', lock_region_red: 'noxus' });
+          expect(lock).toMatchObject({
+            lock_rule: 'region',
+            lock_region_blue: 'zaun',
+            lock_region_red: 'noxus',
+          });
           expect(row.pending_rule).toBeNull();
         } else {
           expect(redraw.status, JSON.stringify(redraw.json)).toBe(200);
@@ -296,7 +300,10 @@ if (stack === null) {
       await setRow(regionRow('zaun', 'noxus'));
       const { lobbyId } = await rolled();
       const before = await night.cardRow();
-      for (const body of [{ redraw: true, game: 'next' }, { side: 'blue', region: 'ionia' }]) {
+      for (const body of [
+        { redraw: true, game: 'next' },
+        { side: 'blue', region: 'ionia' },
+      ]) {
         expect(await night.cardAnswer(body)).toEqual({
           status: 409,
           json: { ok: false, error: "Teams were just rolled, so those regions are this game's now." },

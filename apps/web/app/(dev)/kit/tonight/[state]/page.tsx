@@ -1,3 +1,4 @@
+import type { RoleValue } from '@customs/db';
 import { type Mode, regionPool } from '@customs/core';
 import { notFound } from 'next/navigation';
 import { PageGroupProvider } from '@/app/_shell/PageGroup';
@@ -112,6 +113,7 @@ export default async function KitTonightPage({
     scale?: string;
     pair?: string;
     banregion?: string;
+    ten?: string;
   }>;
 }) {
   if (process.env.NODE_ENV === 'production') notFound();
@@ -134,6 +136,7 @@ export default async function KitTonightPage({
     scale,
     pair,
     banregion,
+    ten,
   } = await searchParams;
   if (!(TONIGHT_STATES as readonly string[]).includes(state)) notFound();
 
@@ -177,7 +180,7 @@ export default async function KitTonightPage({
       : taped;
   // M20.10: `?pair=ixtal,noxus` is the next game's region pair (with `?rule=region`), and
   // `?banregion=ixtal` adds every champion of a region to the Fearless pool, so the pair can run short.
-  const paired = withPairAndBans(fixture, pair, banregion);
+  const paired = withTaggedTen(withPairAndBans(fixture, pair, banregion), ten);
   const shown = kitViewer(viewer, paired);
   const group = ORIGINAL_GROUP;
   const live = tonightHeader(tonightState(fixture.snapshot)).live;
@@ -240,4 +243,40 @@ function withPairAndBans(
           ],
         };
   return { ...fixture, snapshot: { ...fixture.snapshot, modeRow, fearless } };
+}
+
+/**
+ * M20.14: `?ten=tags` makes the finished game's ten the long region tags (Shadow Isles, Bandle City
+ * and two-region champions such as Ziggs, `Zaun · Bandle City`), for the `Banned next game` frames
+ * at 375: a tag may only wrap between words.
+ */
+const TAGGED_TEN: readonly { id: number; name: string; role: RoleValue }[] = [
+  { id: 83, name: 'Yorick', role: 'top' },
+  { id: 17, name: 'Teemo', role: 'top' },
+  { id: 120, name: 'Hecarim', role: 'jungle' },
+  { id: 60, name: 'Elise', role: 'jungle' },
+  { id: 711, name: 'Vex', role: 'mid' },
+  { id: 115, name: 'Ziggs', role: 'mid' },
+  { id: 18, name: 'Tristana', role: 'adc' },
+  { id: 429, name: 'Kalista', role: 'adc' },
+  { id: 412, name: 'Thresh', role: 'support' },
+  { id: 117, name: 'Lulu', role: 'support' },
+];
+
+function withTaggedTen(fixture: TonightStateFixture, ten: string | undefined): TonightStateFixture {
+  const gameId = fixture.snapshot.lobby?.result?.gameId;
+  if (ten !== 'tags' || gameId === undefined) return fixture;
+  const others = fixture.snapshot.fearless.champions.filter(
+    (champion) => champion.gameId !== gameId && !TAGGED_TEN.some((one) => one.id === champion.id),
+  );
+  return {
+    ...fixture,
+    snapshot: {
+      ...fixture.snapshot,
+      fearless: {
+        ...fixture.snapshot.fearless,
+        champions: [...others, ...TAGGED_TEN.map((one) => ({ ...one, gameId }))],
+      },
+    },
+  };
 }

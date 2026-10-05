@@ -370,8 +370,9 @@ describe("M20.16: the next game's regions for everyone while a game is on", () =
   const night = (
     key: 'balanced' | 'in-game',
     viewer: (typeof VIEWERS)[number][1],
-    tweak: (fixture: ReturnType<typeof tonightStateFixture>) => ReturnType<typeof tonightStateFixture> = (f) =>
+    tweak: (fixture: ReturnType<typeof tonightStateFixture>) => ReturnType<typeof tonightStateFixture> = (
       f,
+    ) => f,
   ) => {
     const { connection: _c, ...fixture } = tweak(
       tonightStateFixture(key, { now: NOW, mode: 'fearless', queued: 'region' }),
@@ -408,7 +409,11 @@ describe("M20.16: the next game's regions for everyone while a game is on", () =
     expect(nextLine()).toHaveTextContent('Next game: Region wars, Shurima vs Zaun.');
     act(() => {
       applyModeRow(ORIGINAL_GROUP.id, {
-        row: { standing: 'fearless', pending: { id: 'region', blue: 'shadow-isles', red: 'ionia' }, rated: null },
+        row: {
+          standing: 'fearless',
+          pending: { id: 'region', blue: 'shadow-isles', red: 'ionia' },
+          rated: null,
+        },
         updatedAt: '2026-09-08T20:35:00.000Z',
       });
     });

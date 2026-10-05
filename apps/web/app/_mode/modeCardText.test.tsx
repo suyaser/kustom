@@ -188,7 +188,10 @@ describe('the Mode card text before and after the one-row rewrite (M20.8)', () =
         const { target, view } = renderEntry(options, key, true);
         const toggle = await screen.findByRole('switch', { name: 'Rated' });
         // 9.
-        const { card: trimmed, nextLine } = cutNextRegion(screen.getByRole('region', { name: /^Mode / }), key);
+        const { card: trimmed, nextLine } = cutNextRegion(
+          screen.getByRole('region', { name: /^Mode / }),
+          key,
+        );
         expect(nextLine).toBe(nextLineExpected(target, key));
         // 6.
         const pairs = trimmed.querySelectorAll('[data-slot^="region-controls-"]');
