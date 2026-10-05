@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   lobbyView,
+  seatedOnTheirSides,
   snapshot,
   tapeEntry,
   workedMembers,
@@ -16,6 +17,7 @@ import {
   receiptNames,
   seatStanding,
   stillNeeded,
+  viewerRegionSide,
   viewerSeat,
 } from './screen';
 import { elapsedLabel, rosterCount, stripDateLine, wouldSitOutLine } from './screenCopy';
@@ -70,6 +72,22 @@ describe('the 2.0 tonight helpers (M14.9)', () => {
     if (seat === undefined) throw new Error('fixture');
     expect(viewerSeat(teams, seat.puuid)).toEqual({ side: 'red', role: seat.role });
     expect(viewerSeat(teams, 'nobody')).toBeNull();
+  });
+
+  it('M21.9: the region side is where the client has the viewer, else the split side', () => {
+    const teams = workedTeams();
+    const seat = teams.red[0];
+    if (seat === undefined) throw new Error('fixture');
+    // No side known: the split's.
+    expect(viewerRegionSide(teams, seat.puuid)).toBe('red');
+    // A red seat still sitting on blue: blue's region is theirs; after moving, red's.
+    expect(viewerRegionSide(seatedOnTheirSides(teams, { [seat.puuid]: 100 }), seat.puuid)).toBe('blue');
+    expect(viewerRegionSide(seatedOnTheirSides(teams), seat.puuid)).toBe('red');
+    expect(viewerRegionSide(seatedOnTheirSides(teams, { [seat.puuid]: null }), seat.puuid)).toBe('red');
+    // Not seated, or nobody looking: none.
+    expect(viewerRegionSide(teams, 'nobody')).toBeNull();
+    expect(viewerRegionSide(teams, null)).toBeNull();
+    expect(viewerRegionSide(null, seat.puuid)).toBeNull();
   });
 
   it('lists the lanes nobody mains, in lane order, only short of ten', () => {

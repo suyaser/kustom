@@ -129,6 +129,20 @@ export function viewerSeat(
 }
 
 /**
+ * M21.9: the side whose region pool is the viewer's while the lobby is `balanced`: where the client
+ * has them (`liveSide`) when known, else the side the split gave them. The side line keeps asking
+ * them to move to the split's side; when they do, this follows. `null`: not seated in the split.
+ */
+export function viewerRegionSide(teams: TeamsView | null, puuid: string | null): 'blue' | 'red' | null {
+  if (teams === null || puuid === null) return null;
+  const seat = [...teams.blue, ...teams.red].find((one) => one.puuid === puuid);
+  if (seat === undefined) return null;
+  if (seat.liveSide === 100) return 'blue';
+  if (seat.liveSide === 200) return 'red';
+  return teams.blue.includes(seat) ? 'blue' : 'red';
+}
+
+/**
  * `Still needed: jungle, support` (STRATEGY §6(a)): the lanes nobody in the lobby mains, in lane
  * order, while the lobby is short of ten. Empty when nobody has a main role to read (the bot can
  * put anyone anywhere, and naming every lane would be noise) or when the lobby is full.

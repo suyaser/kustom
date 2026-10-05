@@ -12,6 +12,7 @@ import { applyModeRow, noteThisGame, resetModeStoreForTests } from '@/lib/mode/c
 import { MODE_NOW_NORMAL_BODY } from '@/lib/mode/copy';
 import { MIRROR_HOST_FILLING_LINE, MIRROR_HOST_LEAD, mirrorStatus } from '@/lib/mode/ruleCopy';
 import { fearlessCounts } from '@/lib/mode/view';
+import { seatedOnTheirSides } from '@/lib/testing/tonightFixtures';
 import { Announcer } from '../_tonight/Announcer';
 import {
   ADMIN_VIEWER,
@@ -22,6 +23,7 @@ import {
   type TonightFixtureOptions,
   type TonightStateKey,
   tonightStateFixture,
+  VIEWER_PUUID,
 } from '../_tonight/fixtures';
 import { TonightView } from '../_tonight/TonightView';
 import { ModePanelBody } from './ModePanelBody';
@@ -138,6 +140,44 @@ describe('region wars and mirror match', () => {
     expect(screen.getByRole('link', { name: 'Ionia for support' })).toBeInTheDocument();
     draw('in-game', { rule: 'region' });
     expect(screen.getByText('This game: Ionia vs Noxus.')).toBeInTheDocument();
+  });
+
+  describe('M21.9: after Roll the region follows the side the viewer is on', () => {
+    /** Balanced region wars (Ionia vs Noxus); Theo's split seat is blue, the client has him at `theo`. */
+    const balancedAt = (theo: 100 | 200 | null, viewer = MEMBER_VIEWER) => {
+      const { connection: _c, ...fixture } = tonightStateFixture('balanced', { now: NOW, rule: 'region' });
+      const lobby = fixture.snapshot.lobby;
+      if (lobby === null || lobby.teams === null) throw new Error('fixture');
+      const teams = seatedOnTheirSides(lobby.teams, { [VIEWER_PUUID]: theo });
+      if (!teams.blue.some((seat) => seat.puuid === VIEWER_PUUID)) throw new Error('Theo is not on blue');
+      const snapshot = { ...fixture.snapshot, lobby: { ...lobby, teams } };
+      return render(<TonightView {...fixture} snapshot={snapshot} viewer={viewer} group={ORIGINAL_GROUP} />);
+    };
+
+    it("a blue seat still sitting on red sees Red's region as theirs, then Blue's after moving", () => {
+      const sitting = balancedAt(200);
+      expect(card().textContent).toMatch(/support·Noxus/);
+      expect(screen.getByRole('link', { name: 'Noxus for support' })).toBeInTheDocument();
+      expect(screen.queryByRole('link', { name: 'Ionia for support' })).toBeNull();
+      sitting.unmount();
+      // The next lobby post has him on blue: the region follows.
+      balancedAt(100);
+      expect(card().textContent).toMatch(/support·Ionia/);
+      expect(screen.getByRole('link', { name: 'Ionia for support' })).toBeInTheDocument();
+    });
+
+    it('no side known: the split side, as before', () => {
+      balancedAt(null);
+      expect(screen.getByRole('link', { name: 'Ionia for support' })).toBeInTheDocument();
+    });
+
+    it("visitors see the same card wherever the viewer's seat sits", () => {
+      const sitting = balancedAt(200, ANON_VIEWER);
+      const before = card().innerHTML;
+      sitting.unmount();
+      balancedAt(100, ANON_VIEWER);
+      expect(card().innerHTML).toBe(before);
+    });
   });
 
   it("no draw at Roll: the card says the rule didn't apply", () => {

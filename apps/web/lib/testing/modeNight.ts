@@ -205,8 +205,15 @@ export async function modeNight(stack: LocalStack, key: string) {
     return data;
   }
 
-  /** The companion's lobby post (it repeats it on every change; a repeat is a no-op). */
-  async function companionLobby(partyId: string, members: readonly string[] = ten): Promise<string> {
+  /**
+   * The companion's lobby post (it repeats it on every change; a repeat is a no-op). The first
+   * five sit on blue, the rest on red, unless `sides` puts somebody elsewhere (M21.9).
+   */
+  async function companionLobby(
+    partyId: string,
+    members: readonly string[] = ten,
+    sides: Readonly<Record<string, 100 | 200>> = {},
+  ): Promise<string> {
     const response = await postLobby(
       jsonRequest(
         '/api/companion/lobby',
@@ -220,7 +227,7 @@ export async function modeNight(stack: LocalStack, key: string) {
               gameName: names[index],
               tagLine: 'EUW',
               summonerId: 8_000 + index,
-              side: index < 5 ? 100 : 200,
+              side: sides[puuid] ?? (index < 5 ? 100 : 200),
               isSpectator: false,
             };
           }),

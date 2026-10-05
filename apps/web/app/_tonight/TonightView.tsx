@@ -49,6 +49,7 @@ import {
   offRoleSeats,
   receiptNames,
   resultReceipt,
+  viewerRegionSide,
   viewerSeat,
 } from '@/lib/tonight/screen';
 import {
@@ -172,6 +173,12 @@ export function TonightView(props: TonightViewProps) {
       : state.kind === 'teams' && state.lobby.status !== 'finished'
         ? viewerSeat(state.teams, puuid)
         : null;
+  // M21.9: the region pool that is the viewer's. Balanced: where the client has them (`liveSide`),
+  // else the split's side; in game: the kickoff seat (M21.5). The side line still names the split's.
+  const regionSide =
+    state.kind === 'teams' && state.lobby.status === 'balanced'
+      ? viewerRegionSide(state.teams, puuid)
+      : (seat?.side ?? null);
   const variant: ModeCardVariant =
     state.kind === 'filling'
       ? 'filling'
@@ -237,7 +244,7 @@ export function TonightView(props: TonightViewProps) {
       variant={variant}
       view={cardView}
       viewerLane={seat?.role ?? null}
-      viewerSide={seat?.side ?? null}
+      viewerSide={regionSide}
       bannedNext={
         state.kind === 'result'
           ? {
@@ -272,7 +279,7 @@ export function TonightView(props: TonightViewProps) {
     answer !== null && answer.kind === 'seated' && answer.role !== null && variant === 'balanced'
       ? showsFearlessPool(cardView)
         ? fearlessWhatsOpen(answer.role)
-        : ruleLaneLabel(cardView.shown, answer.role, answer.side)
+        : ruleLaneLabel(cardView.shown, answer.role, regionSide ?? answer.side)
       : null;
   // M14.41 (gap 3): the ten by side on the first screen, for whoever has no seated answer band.
   const names =

@@ -31,7 +31,9 @@ import {
  * 5. Teams come down (somebody leaves): the lock goes back to the row, pair included; an admin sets
  *    Blue to Ionia and Red to Freljord (set side, next game); back to ten, Roll locks them.
  * 6. The card and the panel show both pools, the seated viewer's side first, and the credit.
- * 7. The game: Blue all Ionia, Red three Freljord, Annie (Noxus by home: broke) and a champion
+ *    M21.9: a red seat sitting on blue in the client is shown Blue's region as theirs, then Red's
+ *    after the next lobby post has them on red (two lobby posts, the teams stay up).
+ * 7. The game (M21.9: in game each of the ten's side is the kickoff side): Blue all Ionia, Red three Freljord, Annie (Noxus by home: broke) and a champion
  *    newer than the pin (no row: couldn't check, named as the client named it). Not rated: no pool,
  *    no rating, no role moves.
  * 8. The result post and the poster carry the check line; the card is back on Fearless.
@@ -67,7 +69,8 @@ if (stack === null) {
   const { ruleLineOf } = await import('./_mode/RuleLine');
   const { loadModePanelView } = await import('@/lib/mode/panelView');
   const { championTable, regionIds } = await import('@/lib/mode/champions');
-  const { viewerSeat } = await import('@/lib/tonight/screen');
+  const { viewerRegionSide, viewerSeat } = await import('@/lib/tonight/screen');
+  const { viewerKickoffSeat } = await import('@/lib/tonight/kickoff');
   const { listCapturedGames } = await import('@/lib/admin/games');
   const { ratedLabel } = await import('@/lib/admin/sectionCopy');
   const { eogBody, testGameId } = await import('@/lib/testing/fixtures');
@@ -254,12 +257,52 @@ if (stack === null) {
       expect(freljord).not.toContain('Ahri');
     });
 
+    it('6b. M21.9: the region follows the side the viewer is on in the client, not the split seat', async () => {
+      const { partyId, lobbyId } = shared.lobby;
+      const teams = (await night.snapshot()).lobby?.teams ?? null;
+      const who = night.ten.find((puuid) => viewerSeat(teams, puuid)?.side === 'red') ?? '';
+      const role = viewerSeat(teams, who)?.role ?? '';
+      expect(role).not.toBe('');
+      const viewer = { kind: 'linked', puuid: who, isAdmin: false, isMember: true } as const;
+
+      // Lobby post 1: the red seat sits on blue. The teams stay up; Blue's region is theirs.
+      expect(await night.companionLobby(partyId, night.ten, { [who]: 100 })).toBe(lobbyId);
+      expect(await night.lockOf(lobbyId)).toMatchObject({ status: 'balanced', lock_rule: 'region' });
+      const sitting = (await night.snapshot()).lobby?.teams ?? null;
+      expect(viewerSeat(sitting, who)?.side).toBe('red');
+      expect(viewerRegionSide(sitting, who)).toBe('blue');
+      const before = await night.tonightPaint(viewer);
+      expect(before).toContain(`Ionia for ${role}`);
+      expect(before).not.toContain(`Freljord for ${role}`);
+
+      // Lobby post 2: they move to red. The region follows.
+      expect(await night.companionLobby(partyId, night.ten, { [who]: 200 })).toBe(lobbyId);
+      expect(viewerRegionSide((await night.snapshot()).lobby?.teams ?? null, who)).toBe('red');
+      const after = await night.tonightPaint(viewer);
+      expect(after).toContain(`Freljord for ${role}`);
+      expect(after).not.toContain(`Ionia for ${role}`);
+
+      // Visitors: the same card either way (only the viewer's own side moves).
+      expect(await night.tonightPaint()).toContain('BLUE Ionia vs RED Freljord');
+
+      // Back where the night had them, so the game below starts on the same sides.
+      expect(await night.companionLobby(partyId)).toBe(lobbyId);
+      night.clearPosts();
+    });
+
     it('7. the game is checked per side, stamped not rated, and moves nothing; a second companion is a no-op', async () => {
       const { partyId, lobbyId } = shared.lobby;
       shared.poolBefore = await night.poolIds();
       shared.ratingsBefore = await night.ratingsOfTen();
       shared.rolesBefore = await night.rolesOfTen();
       shared.gameId = await night.startGame(partyId);
+      // M21.9: in game, each of the ten's side (the card's and panel's) is the kickoff side, the
+      // side the client had them on (the first five blue), not the split seat.
+      const kickoff = (await night.snapshot()).lobby?.kickoff ?? null;
+      expect(kickoff).not.toBeNull();
+      night.ten.forEach((puuid, index) => {
+        expect(viewerKickoffSeat(kickoff, puuid)?.side).toBe(index < 5 ? 'blue' : 'red');
+      });
       const seats = await night.seatsOf(lobbyId);
       // The end-of-game block names the new champion the way the client does.
       const body = await night.eogFor(lobbyId, partyId, shared.gameId, RULE_GAME, {
