@@ -187,6 +187,16 @@ says it.
 Retired on 2026-10-03 because each said fairness a second, different way: `Teams are N% even.`, the bare
 `Gap 45`, and team rating totals on cards and in Discord.
 
+### Two lobbies at once (M22, planned 2026-10-05)
+
+Some nights there are enough people for two customs, each with somebody running Kustom in it. Each is its own
+lobby on the tonight page: its own people, its own Roll, its own mode (a rule, the regions, Rated, and probably
+its own Fearless list, which the owner is still deciding), its own teams post and result. The page opens on the
+lobby you are in and a row at the top switches between them. When the second lobby ends, the page is a one-lobby
+page again. With one lobby, whether one friend or three in it run Kustom, nothing on the page or in Discord
+changes. Moving between customs is done in the client as always; whoever leaves a lobby for another takes the
+page with them (M22.1, the 2026-10-04 bug where the page stayed on the custom its host had left).
+
 ## The things a person can change on a night
 
 Everything else happens without anybody touching it. These exist because the docs accepted them, and each is
@@ -652,6 +662,7 @@ See `02-milestones.md` for the build order. In product terms:
 | The `Get your group ready` checklist, one-click Discord connect, host setup by code | M14 |
 | The landing page, `/how`, `/download`, and `/g/customs` as the demo | M14 |
 | Fast pages: tonight changes once per real change and never because of another group, a tap shows its answer at once, no player or lobby rows travel over the live connection | M19 |
+| Two lobbies at once: each with its own people, Roll, mode, posts and result; one lobby exactly as before | M22 (planned; M22.1 the bug fix first) |
 
 Backfill reads the client's own match history, and M0 confirmed it can: customs are in there (17 of 21 games in
 the first capture). The history *list* names only the person whose client it is, so backfill fetches each
