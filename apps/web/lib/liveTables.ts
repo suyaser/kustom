@@ -11,7 +11,10 @@ import { tonightStart } from './tonight/night';
  * never confused with a row. A table is **live** while its newest row is `open`, `balanced` or
  * `in_game`, or `finished` less than {@link TABLE_LINGER_MS} ago (the walk back to the lobby
  * after a game); it ends when its newest row is `abandoned` or `dropped`, or once the linger has
- * passed with no next cycle.
+ * passed with no next cycle. **A finished table also ends at once when its Kustoms have moved on**
+ * (lead ruling 2026-10-05, "a host's Kustom is in one lobby at a time"): nobody's Kustom watches
+ * it any more and a Kustom that was in it has since posted another party ({@link movedOn}). The
+ * linger is only for players still in the post-game lobby whose Kustom has not posted elsewhere.
  *
  * A table is **watched** while some token of the group, unrevoked and seen inside
  * {@link HOST_WINDOW_MS}, is in it ({@link tokenWatches}). The lobby route keeps each token's
@@ -65,8 +68,15 @@ export interface LiveTable {
   label: { hostPlayerId: string | null; lobbyName: string | null };
 }
 
-/** Is a table whose newest row is this one live at `now`? (M22 D4) */
-export function isTableLive(newest: Pick<TableRow, 'status' | 'updatedAt'>, now: Date): boolean {
+/**
+ * Is a table whose newest row is this one live at `now`? (M22 D4) `movedOn`: its Kustoms have
+ * moved to another party ({@link movedOn}), which ends a `finished` table before its linger.
+ */
+export function isTableLive(
+  newest: Pick<TableRow, 'status' | 'updatedAt'>,
+  now: Date,
+  movedOn = false,
+): boolean {
   switch (newest.status) {
     case 'open':
     case 'balanced':
@@ -75,7 +85,7 @@ export function isTableLive(newest: Pick<TableRow, 'status' | 'updatedAt'>, now:
     case 'finished':
       // `updated_at` moves when the row becomes `finished` and a finished row takes no more posts
       // (a post for the party opens the next cycle), so it is when the game ended.
-      return now.getTime() - Date.parse(newest.updatedAt) < TABLE_LINGER_MS;
+      return !movedOn && now.getTime() - Date.parse(newest.updatedAt) < TABLE_LINGER_MS;
     case 'abandoned':
     case 'dropped':
       return false;
@@ -108,6 +118,31 @@ export function tokenWatches(
 }
 
 /**
+ * Have the Kustoms of the finished table whose newest row is `lobbyId` moved on? True when no token
+ * watches it (`watchers` empty) and some token **was in it** (its player sits on the newest row's
+ * roster) and has posted another party since the game ended (`current_party_at` after the row's
+ * `updated_at`). A table no Kustom was ever seen in, or whose Kustoms have posted nothing since,
+ * keeps its linger. Only meaningful for a `finished` row.
+ */
+export function movedOn(
+  table: { partyId: string; lobbyId: string; endedAt: string },
+  watchers: readonly unknown[],
+  tokens: readonly WatchingToken[],
+  seats: readonly SeatSeen[],
+): boolean {
+  if (watchers.length > 0) return false;
+  const ended = Date.parse(table.endedAt);
+  return tokens.some(
+    (token) =>
+      token.currentPartyId !== null &&
+      token.currentPartyId !== table.partyId &&
+      token.currentPartyAt !== null &&
+      Date.parse(token.currentPartyAt) >= ended &&
+      seats.some((seat) => seat.lobbyId === table.lobbyId && seat.playerId === token.playerId),
+  );
+}
+
+/**
  * The fold, pure: `rows` are the group's rows of every candidate party, enough of them that each
  * party's newest row is among them; `tokens` the group's {@link WatchingToken}s; `seats` the roster
  * rows of those tokens' players in the newest rows. Tables come oldest newest-row first.
@@ -130,14 +165,16 @@ export function foldLiveTables(
     const first = firstReported.get(row.lcuPartyId);
     if (first === undefined || isNewer(first, row)) firstReported.set(row.lcuPartyId, row);
   }
-  const live = [...newestByParty.values()].filter((row) => isTableLive(row, now));
-  live.sort((a, b) => (isNewer(a, b) ? 1 : isNewer(b, a) ? -1 : 0));
-  return live.map((lobby) => {
+  const newest = [...newestByParty.values()].sort((a, b) => (isNewer(a, b) ? 1 : isNewer(b, a) ? -1 : 0));
+  return newest.flatMap((lobby) => {
     const table = { partyId: lobby.lcuPartyId, lobbyId: lobby.id };
     const watchers = tokens
       .filter((token) => tokenWatches(token, table, seats))
       .map((token) => ({ tokenId: token.tokenId, playerId: token.playerId }))
       .sort((a, b) => (a.tokenId < b.tokenId ? -1 : a.tokenId > b.tokenId ? 1 : 0));
+    const moved =
+      lobby.status === 'finished' && movedOn({ ...table, endedAt: lobby.updatedAt }, watchers, tokens, seats);
+    if (!isTableLive(lobby, now, moved)) return [];
     return {
       partyId: lobby.lcuPartyId,
       lobby,

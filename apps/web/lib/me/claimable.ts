@@ -1,7 +1,9 @@
 import { groupRoleSchema, isAtLeast } from '@customs/db';
 import { inChunks } from '../chunks';
+import type { TableRow } from '../liveTables';
 import { nightStart } from '../night';
 import type { ServiceClient } from '../supabase';
+import { nightTables } from '../tonight/tables';
 
 /**
  * Who a signed-in visitor with no player row may claim as themselves (M3.6, widened by M14.34).
@@ -10,7 +12,9 @@ import type { ServiceClient } from '../supabase';
  * request and the clock, never by anything the page sends:
  *
  *   1. the members of the group's tonight lobby (its newest non-`abandoned` lobby since the
- *      night began, the one the tonight page renders), M3.6's rule;
+ *      night began, the one the tonight page renders), M3.6's rule. M22.5: of **every live
+ *      table** (`lib/liveTables.ts`), since Tonight may draw any of them and offers only the drawn
+ *      table's rows (`RoleTonight`); with no live table, the newest row as before;
  *   2. **the ten of any game of the group that finished in the last {@link CLAIM_WINDOW_HOURS}
  *      hours** (M14.34), so someone who signs in the next morning from the game page or the
  *      Discord link can still say `That's me`. "Finished" is the game's own end,
@@ -107,25 +111,50 @@ export function claimableSeats(claimable: readonly string[], seatPuuids: readonl
 }
 
 async function tonightLobbyPuuids(client: ServiceClient, options: ClaimSetOptions): Promise<string[]> {
-  const since = nightStart(options.now ?? new Date(), options.timeZone).toISOString();
-  const { data: lobby, error: lobbyError } = await client
+  const now = options.now ?? new Date();
+  const since = nightStart(now, options.timeZone).toISOString();
+  // M22.5: tonight's rows (abandoned too: a newest abandoned row ends its table), one read as before.
+  const { data: rows, error: lobbyError } = await client
     .from('lobbies')
-    .select('id')
+    .select('id, lcu_party_id, status, created_at, updated_at, reported_by_player_id, lobby_name')
     .eq('group_id', options.groupId)
-    .gte('created_at', since)
-    .neq('status', 'abandoned')
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .gte('created_at', since);
   if (lobbyError) throw new Error(`claimable: lobby lookup failed: ${lobbyError.message}`);
-  if (!lobby) return [];
+  const lobbyIds = drawableLobbyIds(
+    (rows ?? []).map((row) => ({
+      id: row.id,
+      lcuPartyId: row.lcu_party_id,
+      status: row.status,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      reportedByPlayerId: row.reported_by_player_id,
+      lobbyName: row.lobby_name,
+    })),
+    now,
+  );
+  if (lobbyIds.length === 0) return [];
 
   const { data, error } = await client
     .from('lobby_members')
     .select('players!inner(puuid)')
-    .eq('lobby_id', lobby.id);
+    .in('lobby_id', lobbyIds);
   if (error) throw new Error(`claimable: member lookup failed: ${error.message}`);
-  return (data ?? []).map((row) => row.players.puuid);
+  return [...new Set((data ?? []).map((row) => row.players.puuid))];
+}
+
+/**
+ * The rows Tonight may draw (M22.5): every live table's newest row, or, with none, the night's
+ * newest non-`abandoned` row (M3.6's rule as it was). Exported for its test.
+ */
+export function drawableLobbyIds(rows: readonly TableRow[], now: Date): string[] {
+  const tables = nightTables(rows, now);
+  if (tables.length > 0) return tables.map((table) => table.lobby.id);
+  let newest: TableRow | null = null;
+  for (const row of rows) {
+    if (row.status === 'abandoned') continue;
+    if (newest === null || Date.parse(row.createdAt) >= Date.parse(newest.createdAt)) newest = row;
+  }
+  return newest === null ? [] : [newest.id];
 }
 
 interface RecentGameRow {
