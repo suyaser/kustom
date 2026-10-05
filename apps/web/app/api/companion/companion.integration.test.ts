@@ -352,6 +352,12 @@ if (stack === null) {
       const json = await response.json();
       expect(json).toMatchObject({ ok: true, created: true, memberCount: 5, rosterFrozen: false });
       expect(await countMembers(json.lobbyId as string)).toBe(5);
+
+      // The spectator's Kustom goes back to the main lobby, so the owner's posts about other
+      // parties below do not let it go (M22.3: a Kustom is in the party it last posted, M22 D7).
+      const back = await postLobby(post(lobbyBody(puuids, [spectatorPuuid]), spectatorToken));
+      expect(back.status).toBe(200);
+      expect(await back.json()).toMatchObject({ created: false, memberCount: 11 });
     });
 
     it('accepts an empty list from the companion that reported the lobby', async () => {
