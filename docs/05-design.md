@@ -4934,9 +4934,11 @@ moved.
 `/games` keeps listing a remake (view.ts: it happened), aligned with Tonight:
 
 - Row title `Remake`, no side glyph, no odds line (`RowOdds` renders nothing), no rule note; date and
-  duration as usual; the per-player lines stay.
-- Game page h1 `Remake`; the page `<title>` verdict `Remake · 4 min`; no `GameReceipt`; the two team
-  headings and the scoreboard stay.
+  duration as usual; the per-player lines stay, without their `· Won` / `· Lost`.
+- Game page h1 `Remake`; the page `<title>` and the share image verdict `Remake · 4 min`; no `GameReceipt`;
+  the two team headings (`Blue · 2`) and the scoreboard stay, with no `Won` tag on either heading.
+- A remake names no winner anywhere (lead ruling, 2026-10-05): no word, tag, glyph or side colour says who
+  won it.
 
 ### 15.5 The game-start announcement (6.4)
 
