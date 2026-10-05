@@ -972,6 +972,7 @@ export type Database = {
           rule_region_red: string | null
           source: Database["public"]["Enums"]["game_source"]
           started_at: string
+          voided_at: string | null
           winning_side: number
         }
         Insert: {
@@ -993,6 +994,7 @@ export type Database = {
           rule_region_red?: string | null
           source?: Database["public"]["Enums"]["game_source"]
           started_at: string
+          voided_at?: string | null
           winning_side: number
         }
         Update: {
@@ -1014,6 +1016,7 @@ export type Database = {
           rule_region_red?: string | null
           source?: Database["public"]["Enums"]["game_source"]
           started_at?: string
+          voided_at?: string | null
           winning_side?: number
         }
         Relationships: [
