@@ -15,7 +15,8 @@ export interface LobbyCard {
 
 /**
  * Tonight's forked cards by party (rows created before `nightStart` are last night's and ignored,
- * M22 D5). Read only with two or more live tables (`loadTonight`, beside its second round), so a
+ * M22 D5). Read only on a night of several lobbies (`loadTonight`, beside its second round: two
+ * live, or two overlapped earlier, M22.12, so the last table's unfolded row still shows), so a
  * one-lobby night makes no extra request. Empty on failure: every lobby then shows the group's card,
  * which is what a lobby with no row reads anyway (`cardSourceOf`).
  */
