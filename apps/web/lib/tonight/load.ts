@@ -1,12 +1,27 @@
 import { displayKustom, isOffRole, KUSTOM_START, type Mode, type Role } from '@customs/core';
 import type { RoleValue, SideValue } from '@customs/db';
-import { KICKOFF_COLUMNS, type KickoffRow, ORIGINAL_GROUP_ID, ruleModeOf } from '@customs/db/schemas';
+import {
+  KICKOFF_COLUMNS,
+  type KickoffRow,
+  type LobbyKickoff,
+  ORIGINAL_GROUP_ID,
+  ruleModeOf,
+} from '@customs/db/schemas';
 import { receiptSplitFromRow } from '@/components/receipt/model';
 import type { StoredSplit } from '@/components/receipt/types';
 import { inChunks } from '../chunks';
 import { readAssignments } from '../discord/assemble';
 import { loadFearless } from '../fearless/load';
+import { readKickoffs } from '../games/kickoffs';
 import { gameModeFromRaw, matchesQueue } from '../games/queue';
+import {
+  kickoffOddsFor,
+  type PlayedSplit,
+  playedOddsOf,
+  postedOdds,
+  type ReceiptSeat,
+  splitRolesFor,
+} from '../games/receipt';
 import { type FoldAwardPlayer, gatedGameAward } from '../ingest/fold';
 import { inLaneOrder } from '../laneOrder';
 import { loadCheckNames } from '../mode/clientNames';
@@ -375,10 +390,22 @@ async function loadNight(
             players: new Map(
               [...players].map(([id, player]) => [id, { puuid: player.puuid, name: displayName(player) }]),
             ),
+            kickoffs: tapeKickoffs(tapeLobbies),
           },
           clock,
         );
   return { lobby, tape };
+}
+
+/** The tape lobbies' kickoff records (M21.4), read with the night's lobby rows. A row without the columns has none. */
+function tapeKickoffs(lobbies: readonly TapeLobbyRow[]): Map<string, LobbyKickoff> {
+  const out = new Map<string, LobbyKickoff>();
+  for (const lobby of lobbies) {
+    if (lobby.kickoff === undefined) continue;
+    const record = readKickoff(lobby.kickoff, lobby.id);
+    if (record !== null) out.set(lobby.id, record);
+  }
+  return out;
 }
 
 /** The drawn lobby from its rows. Pure. */
@@ -408,6 +435,8 @@ function buildLobby(
           game.stamp,
           scoreboardOf(source.players, game.row.game_players),
           byPuuid,
+          // M21.7: the kickoff record's odds are the finished game's pre-game odds when its teams played.
+          readKickoff(lobby.kickoff, lobby.id),
         )?.result ?? null)
       : null;
   // M15.5: the mode locked at Roll, which the card shows while the teams are set or in game.
@@ -692,17 +721,19 @@ function toSeat(
  */
 export async function resultOfGame(
   client: PublicClient,
-  game: { id: string; duration_s: number; winning_side: number | null },
+  game: ResultGame,
   lobbyId: string | null,
   byPuuid: ReadonlyMap<string, MemberView> = new Map(),
 ): Promise<{ result: ResultView; explanation: string | null } | null> {
   if (game.winning_side !== 100 && game.winning_side !== 200) return null;
 
-  const [rows, splitRoles, stamp] = await Promise.all([
+  const [rows, splitRoles, stamp, kickoffs] = await Promise.all([
     loadGamePlayers(client, game.id),
     lobbyId === null ? Promise.resolve(NO_SPLIT) : loadChosenSplit(client, lobbyId),
     // M15.5: the rule and rated stamp, for the poster's rule line. Never throws.
     loadGameStamp(client, game.id),
+    // M21.7: the kickoff record, for a changed or unrolled game's pre-game odds. Never throws.
+    readKickoffs(client, lobbyId === null ? [] : [lobbyId], 'tonight'),
   ]);
   if (rows.length === 0) return null;
 
@@ -710,22 +741,39 @@ export async function resultOfGame(
     client,
     rows.map((row) => row.player_id),
   );
-  return assembleResult(game, rows, splitRoles, stamp, scoreboard, byPuuid);
+  const kickoff = lobbyId === null ? null : (kickoffs.get(lobbyId) ?? null);
+  return assembleResult(game, rows, splitRoles, stamp, scoreboard, byPuuid, kickoff);
+}
+
+/** The game row {@link resultOfGame} reads: `gameMode` (`games.game_mode`) tells an ARAM apart. */
+interface ResultGame {
+  id: string;
+  duration_s: number;
+  winning_side: number | null;
+  gameMode?: unknown;
 }
 
 type GamePlayerRow = Awaited<ReturnType<typeof loadGamePlayers>>[number];
 
 /** {@link resultOfGame} from its rows. Pure; Tonight reads the rows with the rest of the night. */
 function assembleResult(
-  game: { id: string; duration_s: number; winning_side: number | null },
+  game: ResultGame,
   rows: readonly GamePlayerRow[],
   splitRoles: ChosenSplit,
   stamp: GameStampView | null,
   scoreboard: ReadonlyMap<string, { puuid: string; name: PlayerName }>,
   byPuuid: ReadonlyMap<string, MemberView>,
+  kickoff: LobbyKickoff | null = null,
 ): { result: ResultView; explanation: string | null } | null {
   if (game.winning_side !== 100 && game.winning_side !== 200) return null;
   if (rows.length === 0) return null;
+
+  // M21.7: the split's role is a fallback only for a player whose team is one of the split's two.
+  const receiptSeats: ReceiptSeat[] = rows.flatMap((row) => {
+    const puuid = scoreboard.get(row.player_id)?.puuid;
+    return puuid === undefined ? [] : [{ puuid, side: row.side === 100 ? 100 : 200, rBefore: row.r_before }];
+  });
+  const fallbackRoles = splitRolesFor(splitRoles.split, receiptSeats);
 
   const seats: ResultSeatView[] = [];
   const ten: FoldAwardPlayer[] = [];
@@ -766,7 +814,7 @@ function assembleResult(
       name,
       // What the scoreboard said, then the split's role: the same fallback the result embed
       // uses, so the page and the message put a player on the same line.
-      role: row.role ?? splitRoles.roles.get(puuid) ?? null,
+      role: row.role ?? fallbackRoles.get(puuid) ?? null,
       side: row.side === 100 ? 100 : 200,
       rBefore: row.r_before,
       rAfter: row.r_after,
@@ -779,12 +827,23 @@ function assembleResult(
 
   const winningSide = game.winning_side as SideValue;
   const rated = seats.length > 0 && seats.every((seat) => seat.rBefore !== null && seat.rAfter !== null);
+  // M21.7: the one rule (`lib/games/receipt.ts`): the split's odds only when its teams played.
+  const played = playedOddsOf({
+    aram: matchesQueue(gameModeFromRaw({ gameMode: game.gameMode }), 'aram'),
+    rated: stamp?.rated ?? true,
+    seats: receiptSeats,
+    chosen: splitRoles.split,
+    kickoff,
+  });
 
   const result: ResultView = {
     gameId: game.id,
     winningSide,
     durationS: game.duration_s,
-    blueWinProb: splitRoles.blueWinProb,
+    blueWinProb: postedOdds(played, splitRoles.split),
+    oddsKind: played.kind,
+    pickRank: played.rank,
+    kickoffBlueWinProb: played.kind === 'pre-game' ? kickoffOddsFor(kickoff, receiptSeats) : null,
     topDamage,
     award: rated && ten.length === rows.length ? resultAward(ten, seats, game.duration_s, winningSide) : null,
     // Lane order, the same five positions as the teams block: `game_players` comes back in
@@ -862,12 +921,12 @@ async function scoreboardPlayers(
 }
 
 interface ChosenSplit {
-  roles: Map<string, RoleValue>;
-  blueWinProb: number | null;
+  /** The chosen split's teams, roles, odds and rank (M21.7: the receipt rule reads them), or `null`. */
+  split: (PlayedSplit & { blue: { puuid: string; role: Role }[]; red: { puuid: string; role: Role }[] }) | null;
   explanation: string | null;
 }
 
-const NO_SPLIT: ChosenSplit = { roles: new Map(), blueWinProb: null, explanation: null };
+const NO_SPLIT: ChosenSplit = { split: null, explanation: null };
 
 /** One `splits` row as the night reads it ({@link SPLIT_COLUMNS}). */
 interface SplitRow {
@@ -890,11 +949,25 @@ interface SplitRow {
 function chosenSplitOf(rows: readonly SplitRow[]): ChosenSplit {
   const data = rows.find((row) => row.is_chosen);
   if (data === undefined) return NO_SPLIT;
-  const roles = new Map<string, RoleValue>();
-  for (const side of [data.blue, data.red]) {
-    for (const assignment of readAssignments(side)) roles.set(assignment.puuid, assignment.role);
-  }
-  return { roles, blueWinProb: data.blue_win_prob, explanation: data.explanation };
+  return chosenSplitFrom(data);
+}
+
+function chosenSplitFrom(data: {
+  blue: unknown;
+  red: unknown;
+  blue_win_prob: number;
+  rank: number;
+  explanation: string;
+}): ChosenSplit {
+  return {
+    split: {
+      blue: readAssignments(data.blue),
+      red: readAssignments(data.red),
+      blueWinProb: data.blue_win_prob,
+      rank: data.rank,
+    },
+    explanation: data.explanation,
+  };
 }
 
 /** {@link scoreboardPlayers} from the night's players already read. Pure. */
@@ -910,22 +983,17 @@ function scoreboardOf(
   return out;
 }
 
-/** The chosen split's roles, odds and stored explanation: the fallback role, the prediction line's number. */
+/** The chosen split's teams, odds, rank and stored explanation: the receipt rule's input, the fallback role. */
 async function loadChosenSplit(client: PublicClient, lobbyId: string): Promise<ChosenSplit> {
   const { data, error } = await client
     .from('splits')
-    .select('blue, red, blue_win_prob, explanation')
+    .select('blue, red, blue_win_prob, rank, explanation')
     .eq('lobby_id', lobbyId)
     .eq('is_chosen', true)
     .maybeSingle();
   if (error) throw new Error(`tonight: chosen split lookup failed: ${error.message}`);
   if (!data) return NO_SPLIT;
-
-  const roles = new Map<string, RoleValue>();
-  for (const side of [data.blue, data.red]) {
-    for (const assignment of readAssignments(side)) roles.set(assignment.puuid, assignment.role);
-  }
-  return { roles, blueWinProb: data.blue_win_prob, explanation: data.explanation };
+  return chosenSplitFrom(data);
 }
 
 /* ---------------------------------------------------------------------------
@@ -941,6 +1009,8 @@ export interface TapeLobbyRow {
   id: string;
   status: LobbyView['status'];
   created_at: string;
+  /** The kickoff columns (M21.4), read with the night's lobbies; absent in fixtures. */
+  kickoff?: KickoffRow;
 }
 
 const TAPE_STATUSES = ['finished', 'dropped'] as const;
@@ -1012,6 +1082,8 @@ export interface TapeSource {
     rule_region_blue?: string | null;
     rule_region_red?: string | null;
     rule_checked?: boolean;
+    /** `games.rated` (M15.18): a not-rated game shows no pre-game odds (M21.7). Absent: rated. */
+    rated?: boolean;
   }[];
   /**
    * The scoreboard rows. `r_*` decide `rated`; the stat line (optional, M14.9) is the MVP's input,
@@ -1028,6 +1100,8 @@ export interface TapeSource {
   }[];
   members: readonly { lobby_id: string; player_id: string; created_at: string }[];
   players: ReadonlyMap<string, { puuid: string; name: PlayerName }>;
+  /** Each lobby's kickoff record (M21.4), for a changed game's pre-game odds (M21.7). Absent: none. */
+  kickoffs?: ReadonlyMap<string, LobbyKickoff>;
 }
 
 /**
@@ -1035,7 +1109,10 @@ export interface TapeSource {
  *
  * - **Result** is the lobby's newest game with a winner — `loadResult`'s pick — and `rated` is
  *   its rule, every scoreboard row carrying both all-time Ratings (`r_before`, `r_after`).
- * - **Odds** are the chosen split's stored `blue_win_prob`, the number the poster read.
+ * - **Odds** are the receipt rule's (`playedOddsOf` / `postedOdds`, M21.7), the number the poster
+ *   read: the chosen split's stored `blue_win_prob` when its teams played (flipped for swapped
+ *   sides), the pre-game odds when the teams changed after the roll, none for a game nobody
+ *   rolled. A lobby with no finished game keeps the split's number (nothing to check it against).
  * - **Sitters** are `loadTeams`' rule: the lobby's members who are not one of the chosen
  *   split's ten, in join order (and by name inside one post, as `loadMembers` sorts). With no
  *   chosen split nobody is known to have sat, and there is no line.
@@ -1063,6 +1140,7 @@ export function assembleTape(source: TapeSource, clock: NightClock): TapeEntry[]
     const game = gamesByLobby.get(lobby.id);
     const split = splitByLobby.get(lobby.id);
     const rows = game === undefined ? [] : (rowsByGame.get(game.id) ?? []);
+    const odds = game === undefined ? null : tapeOdds(game, rows, split, source);
 
     return {
       lobbyId: lobby.id,
@@ -1081,11 +1159,47 @@ export function assembleTape(source: TapeSource, clock: NightClock): TapeEntry[]
               mvp: tapeMvp(rows, game, source.players),
               rule: tapeRule(game),
             },
-      blueWinProb: split?.blue_win_prob ?? null,
-      rank: split?.rank ?? null,
+      blueWinProb: odds === null ? (split?.blue_win_prob ?? null) : odds.blueWinProb,
+      rank: odds === null ? (split?.rank ?? null) : odds.rank,
       sitters: split === undefined ? [] : tapeSitters(lobby.id, split, source),
     };
   });
+}
+
+/** A finished tape game's odds and pick number through the receipt rule (M21.7). Pure. */
+function tapeOdds(
+  game: TapeSource['games'][number],
+  rows: readonly TapeGamePlayer[],
+  split: TapeSource['splits'][number] | undefined,
+  source: TapeSource,
+): { blueWinProb: number | null; rank: number | null } {
+  const seats: ReceiptSeat[] = rows.flatMap((row) => {
+    const puuid = row.player_id === undefined ? undefined : source.players.get(row.player_id)?.puuid;
+    return puuid === undefined || (row.side !== 100 && row.side !== 200)
+      ? []
+      : [{ puuid, side: row.side, rBefore: row.r_before }];
+  });
+  const chosen =
+    split === undefined || split.blue_win_prob === null
+      ? null
+      : {
+          blue: readAssignments(split.blue),
+          red: readAssignments(split.red),
+          blueWinProb: split.blue_win_prob,
+          rank: split.rank ?? 1,
+        };
+  const played = playedOddsOf({
+    aram: matchesQueue(gameModeFromRaw({ gameMode: game.gameMode }), 'aram'),
+    rated: game.rated ?? true,
+    seats,
+    chosen,
+    kickoff: game.lobby_id === null ? null : (source.kickoffs?.get(game.lobby_id) ?? null),
+  });
+  return {
+    blueWinProb: postedOdds(played, chosen),
+    // `pick #2` only for the bot's own teams; absent in the source reads as no pick number.
+    rank: played.kind === 'rolled' ? (split?.rank ?? null) : null,
+  };
 }
 
 /**

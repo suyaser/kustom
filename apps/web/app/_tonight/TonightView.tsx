@@ -27,6 +27,7 @@ import { bannedByGame, normalJustNow, normalNoteFactsOf } from '@/lib/mode/view'
 import type { MysteryPageState } from '@/lib/mystery/service';
 import { groupHome, groupHref } from '@/lib/nav';
 import { displayDelta } from '@/lib/ratingDisplay';
+import { NO_ODDS } from '@/lib/receipt/copy';
 import {
   adminNames,
   MISSED_INVITE_END,
@@ -43,12 +44,10 @@ import type { LobbyStartView } from '@/lib/tonight/lobbyStart';
 import { tonightRoles } from '@/lib/tonight/roles';
 import {
   announcement,
-  chosenSplit,
   gameNumber,
   noMainCount,
   offRoleSeats,
-  playedAsRolled,
-  ratingsBefore,
+  resultReceipt,
   receiptNames,
   viewerSeat,
 } from '@/lib/tonight/screen';
@@ -828,7 +827,6 @@ function Result({
 }) {
   const odds = breakdown?.odds ?? null;
   const names = receiptNames(lobby, result);
-  const chosen = teams === null ? null : chosenSplit(teams.stored);
   const members = new Map(lobby.members.map((member) => [member.puuid, member]));
   const notRated = result.stamp?.rift === true && !result.stamp.rated;
   const seats = (side: ResultView['blue']): TeamSeat[] =>
@@ -850,14 +848,17 @@ function Result({
       reason: breakdown?.reasons.get(seat.puuid) ?? null,
     }));
 
+  // M21.7: the game page's rule (`gameReceiptOf`): the bot's receipt when its teams played (turned
+  // round on swapped sides), pre-game odds when they changed, nothing for a not-rated changed game.
+  const played = resultReceipt(result, teams);
   const receipt =
-    teams !== null && chosen !== null && playedAsRolled(result, chosen) ? (
+    played.kind === 'rolled' && teams !== null ? (
       <FairnessReceipt
         variant="finished"
         winner={result.winningSide}
         // M14.45: the strip's `RED WINS` already names the winner; the poster says the odds only.
         winnerShown
-        splits={teams.stored}
+        splits={played.splits}
         names={names}
         // Lead ruling (M14.41 design round 1): Tonight's poster counts main roles the way the
         // balanced receipt did minutes earlier. The game page and history print the stored count.
@@ -865,16 +866,18 @@ function Result({
         calibration={calibration}
         oddsGap={odds === null ? null : oddsGapSentence(odds, result.winningSide)}
       />
-    ) : (
+    ) : played.kind === 'pre-game' ? (
       <PreGameReceipt
-        ratingsBefore={ratingsBefore(result)}
-        ratingBlueWinProb={odds?.ratingBlueWinProb ?? null}
-        reason={teams === null ? 'no-split' : 'teams-changed'}
+        ratingsBefore={played.ratingsBefore}
+        ratingBlueWinProb={played.kickoffBlueWinProb ?? odds?.ratingBlueWinProb ?? null}
+        reason={played.reason}
         winner={result.winningSide}
         winnerShown
-        rolled={teams === null ? undefined : { splits: teams.stored, names }}
+        rolled={played.rolled === null ? undefined : { splits: played.rolled, names }}
         calibration={calibration}
       />
+    ) : (
+      <p className="text-sm text-muted-foreground">{NO_ODDS}</p>
     );
 
   return (

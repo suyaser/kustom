@@ -277,6 +277,19 @@ export function playedOddsOf(input: {
 }
 
 /**
+ * {@link playedOddsOf}'s number on the surfaces that printed odds only for a rolled game before
+ * M21.7 (the result post, the night tape, the poster's link picture, `/fun`): the bot's teams keep
+ * their (oriented) odds, teams changed after a roll get their pre-game odds, and a game nobody
+ * rolled stays without, as before (milestone acceptance 1, "the unrolled game as today"; whether
+ * an unrolled game's kickoff odds should print there is product's call, filed as OPEN).
+ */
+export function postedOdds(played: PlayedOdds, chosen: object | null): number | null {
+  if (played.kind === 'rolled') return played.blueWinProb;
+  if (played.kind === 'pre-game' && chosen !== null) return played.blueWinProb;
+  return null;
+}
+
+/**
  * The split's roles for the players whose side is one of the split's two teams, whichever side it
  * sat on (M21.7, the result post's and the poster's role fallback). A player on a changed side
  * gets none: the split never gave them a lane on that team (M21.5 and M21.6 use the same rule).

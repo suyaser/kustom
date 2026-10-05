@@ -14,7 +14,7 @@ export interface LastGame {
   startedAt: string;
   aram: boolean;
   result: ResultView;
-  /** The chosen split's rank, for `pick #2`; `null` with no split. */
+  /** The chosen split's rank, for `pick #2`, when its teams played (M21.7); `null` otherwise. */
   rank: number | null;
 }
 
@@ -30,29 +30,16 @@ export async function loadLastGame(client: PublicClient, groupId: string): Promi
   if (error) throw new Error(`tonight: last game lookup failed: ${error.message}`);
   if (game === null) return null;
 
-  const [outcome, rank] = await Promise.all([
-    resultOfGame(client, game, game.lobby_id),
-    game.lobby_id === null ? Promise.resolve(null) : chosenRank(client, game.lobby_id),
-  ]);
+  const outcome = await resultOfGame(client, game, game.lobby_id);
   if (outcome === null) return null;
   return {
     gameId: game.id,
     startedAt: game.started_at,
     aram: matchesQueue(gameModeFromRaw({ gameMode: game.gameMode }), 'aram'),
     result: outcome.result,
-    rank,
+    // M21.7: the pick number only when the split's teams played (`resultOfGame` read the rank).
+    rank: outcome.result.pickRank ?? null,
   };
-}
-
-async function chosenRank(client: PublicClient, lobbyId: string): Promise<number | null> {
-  const { data, error } = await client
-    .from('splits')
-    .select('rank')
-    .eq('lobby_id', lobbyId)
-    .eq('is_chosen', true)
-    .maybeSingle();
-  if (error) throw new Error(`tonight: last game split lookup failed: ${error.message}`);
-  return data?.rank ?? null;
 }
 
 /**

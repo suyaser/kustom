@@ -2,6 +2,7 @@ import { isSettling, resolveRoles } from '@customs/core';
 import type { RoleValue } from '@customs/db';
 import type { OffRoleSeat, RatingsBefore, ReceiptNames, StoredSplit } from '@/components/receipt/types';
 import { barSentence } from '@/lib/receipt/copy';
+import { type GameReceipt, gameReceiptOf } from '../games/receipt';
 import { LANE_ORDER } from '../laneOrder';
 import { PLAYERS_PER_GAME } from '../lobbyRules';
 import { isNameless } from './copy';
@@ -73,6 +74,31 @@ export function playedAsRolled(result: ResultView, chosen: StoredSplit): boolean
     return set.size === rolled.length && rolled.every((seat) => set.has(seat.puuid));
   };
   return same(result.blue, chosen.blue) && same(result.red, chosen.red);
+}
+
+/**
+ * The finished game's receipt on Tonight (M21.7): `gameReceiptOf` (the one rule the game page and
+ * history use) over the scoreboard's sides and the lobby's run, so a game played on swapped sides
+ * keeps the bot's receipt turned round and a game whose teams changed after the roll gets pre-game
+ * odds. The loader already decided what `playedOddsOf` decides with the mode and `games.rated` in
+ * hand (`oddsKind`), and read the kickoff record (`kickoffBlueWinProb`); both are carried over.
+ */
+export function resultReceipt(result: ResultView, teams: TeamsView | null): GameReceipt {
+  const seats = [...result.blue, ...result.red].map((seat) => ({
+    puuid: seat.puuid,
+    side: seat.side,
+    rBefore: seat.rBefore,
+  }));
+  const receipt = gameReceiptOf({
+    // An ARAM's `none` is the loader's (`oddsKind`): the page's result carries no mode.
+    aram: false,
+    rated: result.oddsKind !== 'none' && (result.stamp?.rated ?? true),
+    seats,
+    splits: teams?.stored ?? [],
+  });
+  return receipt.kind === 'pre-game'
+    ? { ...receipt, kickoffBlueWinProb: result.kickoffBlueWinProb ?? null }
+    : receipt;
 }
 
 /** Everyone's all-time Kustom Rating going in (`r_before`, M18.5), for core's `preGameOdds` (§4.10). */
