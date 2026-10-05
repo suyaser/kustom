@@ -314,5 +314,21 @@ if (stack === null) {
       label: { kind: 'host', name: 'Ana', repeat: 1 },
       live: 2,
     });
+
+    // An older row of Z, from before tonight (so not among Z's rows): it is Z's table, still live,
+    // never a second one. One table, so no label.
+    const old = await db
+      .from('lobbies')
+      .insert({
+        group_id: groupId,
+        lcu_party_id: `it-${runId}-party-Z`,
+        status: 'finished',
+        reported_by_player_id: idOf.get(ANA) ?? '',
+        created_at: new Date(Date.now() - 3 * 86_400_000).toISOString(),
+      })
+      .select('id')
+      .single();
+    if (old.error) throw new Error(old.error.message);
+    expect(await loadPostLobby(db, groupId, old.data.id, new Date())).toBeUndefined();
   });
 }

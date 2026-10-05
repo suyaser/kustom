@@ -207,7 +207,7 @@ export async function loadPostLobby(
     // The post's own table counts even once it has ended (a pool post after its Kustoms moved on,
     // 14.10): it is labelled from its own row whenever another table is live.
     const found = live.find((table) => table.rowIds.includes(lobbyId));
-    const own = found ?? (await endedTable(client, lobbyId));
+    const own = found ?? (await endedTable(client, groupId, lobbyId, live));
     if (own === null) return undefined;
     const tables = found === undefined ? [...live, own] : live;
     if (tables.length < 2) return undefined;
@@ -231,18 +231,24 @@ export async function loadPostLobby(
   }
 }
 
-/** An ended table's label inputs from one of its rows, or null when there is no such row. */
+/**
+ * An ended table's label inputs from one of its rows, or null when the group has no such row or
+ * the row's party is still live (an older row of a live table is not a second table).
+ */
 async function endedTable(
   client: ServiceClient,
+  groupId: string,
   lobbyId: string,
+  live: readonly { partyId: string }[],
 ): Promise<{ partyId: string; label: { hostPlayerId: string | null }; openedAt: string } | null> {
   const { data, error } = await client
     .from('lobbies')
     .select('lcu_party_id, created_at, reported_by_player_id')
     .eq('id', lobbyId)
+    .eq('group_id', groupId)
     .maybeSingle();
   if (error) throw new Error(`lobby lookup failed: ${error.message}`);
-  if (data === null) return null;
+  if (data === null || live.some((table) => table.partyId === data.lcu_party_id)) return null;
   // ponytail: this row's reporter and created_at, not the party's first tonight; read the party's
   // rows if a later cycle's post ever needs the night's first reporter.
   return {
