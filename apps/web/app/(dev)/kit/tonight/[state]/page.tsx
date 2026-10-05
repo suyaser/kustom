@@ -14,6 +14,7 @@ import { Shell } from '@/components/shell/Shell';
 import { ORIGINAL_GROUP } from '@/lib/groups/pageGroup';
 import { championTable } from '@/lib/mode/champions';
 import { displayDelta } from '@/lib/ratingDisplay';
+import { seatedOnTheirSides } from '@/lib/testing/tonightFixtures';
 import { KUSTOM_KIT_ROSTER, withWorkedRoster } from '@/lib/testing/workedExample';
 import { tonightHeader, tonightState } from '@/lib/tonight/state';
 import type { TapeEntry } from '@/lib/tonight/types';
@@ -112,6 +113,7 @@ export default async function KitTonightPage({
     scale?: string;
     pair?: string;
     banregion?: string;
+    sit?: string;
   }>;
 }) {
   if (process.env.NODE_ENV === 'production') notFound();
@@ -134,6 +136,7 @@ export default async function KitTonightPage({
     scale,
     pair,
     banregion,
+    sit,
   } = await searchParams;
   if (!(TONIGHT_STATES as readonly string[]).includes(state)) notFound();
 
@@ -177,7 +180,9 @@ export default async function KitTonightPage({
       : taped;
   // M20.10: `?pair=ixtal,noxus` is the next game's region pair (with `?rule=region`), and
   // `?banregion=ixtal` adds every champion of a region to the Fearless pool, so the pair can run short.
-  const paired = withPairAndBans(fixture, pair, banregion);
+  // M21.13: `?sit=blue|red`, the side the client has the viewer on while balanced (`liveSide`);
+  // the other side from the split gives `YOU on RED. Move to BLUE to play top.`.
+  const paired = withViewerSitting(withPairAndBans(fixture, pair, banregion), sit);
   const shown = kitViewer(viewer, paired);
   const group = ORIGINAL_GROUP;
   const live = tonightHeader(tonightState(fixture.snapshot)).live;
@@ -214,6 +219,14 @@ export default async function KitTonightPage({
       </Shell>
     </PageGroupProvider>
   );
+}
+
+/** The kit's `?sit=` (M21.13): every seat on its split side, the viewer on the one named. */
+function withViewerSitting(fixture: TonightStateFixture, sit: string | undefined): TonightStateFixture {
+  const lobby = fixture.snapshot.lobby;
+  if ((sit !== 'blue' && sit !== 'red') || lobby === null || lobby.teams === null) return fixture;
+  const teams = seatedOnTheirSides(lobby.teams, { [VIEWER_PUUID]: sit === 'blue' ? 100 : 200 });
+  return { ...fixture, snapshot: { ...fixture.snapshot, lobby: { ...lobby, teams } } };
 }
 
 /** The kit's `?pair=` and `?banregion=` (M20.10): the next game's pair and a region all banned. */
