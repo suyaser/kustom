@@ -4581,13 +4581,14 @@ in any lobby, played while Fearless is on, adds its champions. This section is d
   ban-list line.
 - **In game, Fearless on:** `This game's ten join the ban list for both lobbies when it ends.` replaces
   today's line while 2+ are live (`for every lobby` with three).
-- **The other lobby's game added bans** (Fearless on, this lobby not finished): a dashed note inside the card,
+- **The other lobby's game added bans** (Fearless on): a dashed note inside the card, **at the top of the
+  card, above the title and counts**, in the slot the Roll notice uses (the first thing seen in champ select),
   the 8.3 "reset moment" shape: lead `10 more banned` (700), then `from a game in Bo's lobby.`, until this
   lobby's next game lands or the night ends. Counts update in place. This is the one thing a player in champ
   select must not miss: a name that was open a minute ago is not open now.
 - **Finished:** `Banned next game · from game 4` lists **this lobby's** game's champions (what we just
-  banned), the counts are the list's. If the other lobby's game landed after it, the dashed note above sits
-  under the block.
+  banned), the counts are the list's. If the other lobby's game landed after it, the dashed note still sits
+  at the top of the card, above this block.
 - **Region pair, class and mirror** read exactly as 8.3 and 8.3.1, per lobby: Ana's lobby can be Ionia vs
   Noxus while Bo's is Tanks only.
 - **The panel** (`/mode`) is the one list: it takes `?lobby=` only for the viewer's lane and the rule block.
