@@ -343,6 +343,11 @@ values (${literal(discordId)}, ${literal(userId)}, jsonb_build_object('sub', ${l
           row.prefetch === null &&
           new URL(row.url, base).pathname === path,
       );
+    // M22.6: prefetched renders (the lobby chips prefetch the other lobby's page), counted apart.
+    const prefetches = (path: string, from: number, to: number) =>
+      reqs().filter(
+        (row) => row.t0 >= from && row.t0 < to && row.prefetch !== null && new URL(row.url, base).pathname === path,
+      ).length;
 
     browser = await chromium.launch();
     const context = await browser.newContext({
@@ -370,6 +375,7 @@ values (${literal(discordId)}, ${literal(userId)}, jsonb_build_object('sub', ${l
         step: name,
         renders: seen.length,
         at: seen.map((r) => Math.round(r.t0 - from)),
+        prefetches: prefetches(tonight, from, Date.now()),
       };
       results.push(row);
       windows.push({ row, from, to: Date.now() });
@@ -401,6 +407,7 @@ values (${literal(discordId)}, ${literal(userId)}, jsonb_build_object('sub', ${l
       const row: Record<string, unknown> = {
         step: `tap ${name}`,
         renders: renders(options.path ?? tonight, from, Date.now()).length,
+        prefetches: prefetches(options.path ?? tonight, from, Date.now()),
         pendingAt: at(t.pendOn),
         freeAt: at(t.unpend),
         screenFirst: at(t.change),
@@ -527,8 +534,11 @@ values (${literal(discordId)}, ${literal(userId)}, jsonb_build_object('sub', ${l
     const chip = (current: boolean) =>
       `nav[aria-label="Lobbies"] a${current ? '[aria-current="page"]' : ':not([aria-current])'}`;
     const chipOptions = { pending: '[data-never]', mode: 'present' as const, holds: false };
-    await tap('lobby chip (second lobby)', chip(false), '[data-never]', chipOptions);
-    await tap('lobby chip (back to the first)', chip(false), '[data-never]', chipOptions);
+    // A build before M22.6 (`--web`) has no switcher: the taps are skipped, the rest still runs.
+    if (await switcher()) {
+      await tap('lobby chip (second lobby)', chip(false), '[data-never]', chipOptions);
+      await tap('lobby chip (back to the first)', chip(false), '[data-never]', chipOptions);
+    }
     await step('second lobby ends', async () => {
       const ended = await db
         .from('lobbies')

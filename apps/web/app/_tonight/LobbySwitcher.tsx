@@ -89,6 +89,7 @@ export function LobbySwitcher({
               <Link
                 href={`${home}?lobby=${chip.id}` as Route}
                 replace
+                prefetch={!current}
                 scroll={false}
                 onClick={(event) => tap(event, chip.id)}
                 aria-current={current ? 'page' : undefined}
