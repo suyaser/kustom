@@ -53,7 +53,7 @@ if (stack === null) {
     );
   }
 
-  const unescape = (value: string) =>
+  const decodeHtml = (value: string) =>
     value
       .replaceAll('&quot;', '"')
       .replaceAll('&#x27;', "'")
@@ -73,7 +73,7 @@ if (stack === null) {
   function hiddenFields(form: string): Record<string, string> {
     const fields: Record<string, string> = {};
     for (const match of form.matchAll(/<input type="hidden" name="([^"]+)" value="([^"]*)"/g)) {
-      fields[match[1] ?? ''] = unescape(match[2] ?? '');
+      fields[match[1] ?? ''] = decodeHtml(match[2] ?? '');
     }
     return fields;
   }
