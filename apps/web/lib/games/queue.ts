@@ -1,3 +1,4 @@
+import { isAramGameMode, isRiftGameMode } from '@customs/db/schemas';
 import { z } from 'zod';
 
 /**
@@ -5,8 +6,8 @@ import { z } from 'zod';
  * it is on both the end-of-game block and the match-history detail, and both land in
  * `games.raw`.
  *
- * **Summoner's Rift is the default.** ARAM is the other list. Anything else (Kiwi, a missing
- * mode that is not CLASSIC) is on neither: these pages are the two maps the group actually
+ * **Summoner's Rift is the default.** ARAM (the ARAM family, Mayhem included) is the other list.
+ * Anything else (URF, a mode that is not CLASSIC) is on neither: these pages are the two maps the group actually
  * plays as customs, not a third dump.
  */
 
@@ -46,10 +47,11 @@ export function gameModeFromRaw(raw: unknown): string | null {
  * Whether a stored mode belongs on this list.
  *
  * Rift is `CLASSIC` and a missing mode (every night captured before this page existed was
- * Rift). ARAM is only `ARAM`. Kiwi and anything else stay off both lists.
+ * Rift). ARAM is the ARAM family: `ARAM`, Mayhem (`KIWI`, `KIWI_*`) and `KINGPORO`. URF and
+ * anything else stay off both lists.
  */
 export function matchesQueue(gameMode: string | null | undefined, queue: QueueKind): boolean {
-  const mode = (gameMode ?? '').trim().toUpperCase();
-  if (queue === 'aram') return mode === 'ARAM';
-  return mode === '' || mode === 'CLASSIC';
+  // One helper for the ARAM family (`ARAM`, Mayhem `KIWI` / `KIWI_*`, `KINGPORO`; owner bug
+  // 2026-10-05) and for Rift, shared with the kickoff record and the `/games` SQL filter.
+  return queue === 'aram' ? isAramGameMode(gameMode) : isRiftGameMode(gameMode);
 }

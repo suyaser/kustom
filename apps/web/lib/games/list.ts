@@ -1,6 +1,6 @@
 import type { Calibration, Mode } from '@customs/core';
 import type { RoleValue } from '@customs/db';
-import { type LobbyKickoff, ruleModeOf } from '@customs/db/schemas';
+import { ARAM_GAME_MODE_PATTERN, type LobbyKickoff, ruleModeOf } from '@customs/db/schemas';
 import type { RatingsBefore } from '@/components/receipt/types';
 import { championLabel } from '../champs/names';
 import { ruleRowNote } from '../mode/rowNote';
@@ -184,12 +184,13 @@ interface PageInput {
 /**
  * `matchesQueue` in SQL, trim and case included, so the list and calibration (which runs
  * `matchesQueue` on the same `game_mode`, 0039) can never sort a game onto different maps: Rift is a
- * missing, blank or `CLASSIC` mode (every night before the toggle had none), ARAM is `ARAM`.
+ * missing, blank or `CLASSIC` mode (every night before the toggle had none), ARAM is the ARAM family.
  * POSIX `[[:space:]]`, not `\s`: inside an `or=(...)` value the regex must be double-quoted, and
  * PostgREST's quoted values treat a backslash as an escape, so `\s` would arrive as `s`.
  */
 export const RIFT_MODE_FILTER = 'game_mode.is.null,game_mode.imatch."^[[:space:]]*(classic)?[[:space:]]*$"';
-export const ARAM_MODE_PATTERN = '^[[:space:]]*aram[[:space:]]*$';
+/** The ARAM family (`isAramGameMode`): `ARAM`, Mayhem `KIWI` / `KIWI_*`, `KINGPORO` (owner bug 2026-10-05). */
+export const ARAM_MODE_PATTERN = ARAM_GAME_MODE_PATTERN;
 
 /** The page's filters on a `games` query. Generic so the count and the ranged read share it. */
 function withListFilters<

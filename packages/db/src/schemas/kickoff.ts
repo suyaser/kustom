@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isAramGameMode } from './gameMode';
 
 /**
  * The kickoff record (M21.4, `0046_lobby_kickoff.sql`): the teams that started the game, whether
@@ -63,7 +64,8 @@ export type LobbyKickoff = z.infer<typeof lobbyKickoffSchema>;
  * `Game on` post is skipped (M21.6), as an ARAM's result post is. An unknown mode (null) is not ARAM.
  */
 export function kickoffIsAram(record: Pick<LobbyKickoff, 'gameMode'>): boolean {
-  return (record.gameMode ?? '').trim().toUpperCase() === 'ARAM';
+  // The ARAM family (ARAM: Mayhem is `KIWI`, owner bug 2026-10-05), not only the word `ARAM`.
+  return isAramGameMode(record.gameMode);
 }
 
 /** The `lobbies` columns the record lives in, as selected. */
