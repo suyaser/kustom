@@ -5,7 +5,13 @@ import {
   type CalibrationCandidate,
   calibrationGameOf,
   gameReceiptOf,
+  kickoffOddsFor,
+  playedOddsOf,
+  postedOdds,
   type ReceiptSeat,
+  receiptBlueWinProb,
+  rolledOddsOf,
+  splitRolesFor,
   splitSidesOf,
   teamsMatchSplit,
 } from './receipt';
@@ -202,5 +208,177 @@ describe('calibrationGameOf (STRATEGY §4.8)', () => {
     ];
     const counted = games.map(calibrationGameOf).filter((game) => game !== null);
     expect(calibration(counted)).toMatchObject({ n: 2, favoredWon: 1, expectedPct: 60, actualPct: 50 });
+  });
+});
+
+/**
+ * M21.7: the one rule for the after-game readers. Three fixture games: rolled and played (as
+ * before M21.7), rolled then two people traded in the lobby (pre-game odds, the kickoff record's
+ * first), and nobody rolled (as before). Swapped sides keep the bot's teams, turned round.
+ */
+describe('the after-game rule (M21.7)', () => {
+  const TRADED_BLUE = ['r1', 'b2', 'b3', 'b4', 'b5'];
+  const TRADED_RED = ['b1', 'r2', 'r3', 'r4', 'r5'];
+  const traded = () => seats(TRADED_BLUE, TRADED_RED);
+  const custom = (blueWinProb = 0.41) => ({
+    kind: 'custom' as const,
+    blue: TRADED_BLUE,
+    red: TRADED_RED,
+    at: '2026-10-05T19:00:00.000Z',
+    blueWinProb,
+    oddsModel: 'kustom' as const,
+  });
+  const chosen = (blueWinProb = 0.62, rank = 1) => ({ ...split(rank, { blueWinProb }), rank });
+
+  describe('gameReceiptOf', () => {
+    it('reads swapped sides as the rolled receipt, every split turned round', () => {
+      const run = [split(1, { blueWinProb: 0.62 }), split(2, { blueWinProb: 0.57, isChosen: false })];
+      const receipt = gameReceiptOf({ aram: false, rated: true, seats: seats(RED, BLUE), splits: run });
+      expect(receipt.kind).toBe('rolled');
+      if (receipt.kind !== 'rolled') return;
+      expect(receipt.swapped).toBe(true);
+      expect(receipt.chosen.blueWinProb).toBeCloseTo(0.38, 10);
+      expect(receipt.chosen.blue.map((a) => a.puuid)).toEqual(RED);
+      expect(receipt.splits[1]?.blueWinProb).toBeCloseTo(0.43, 10);
+      expect(receiptBlueWinProb(receipt)).toBeCloseTo(0.38, 10);
+    });
+
+    it('carries the kickoff odds for changed teams, and prints them over the befores', () => {
+      const receipt = gameReceiptOf({
+        aram: false,
+        rated: true,
+        seats: traded(),
+        splits: [split(1)],
+        kickoff: custom(),
+      });
+      expect(receipt).toMatchObject({ kind: 'pre-game', reason: 'teams-changed', kickoffBlueWinProb: 0.41 });
+      expect(receiptBlueWinProb(receipt, 0.7)).toBe(0.41);
+    });
+
+    it('a played game is exactly as before: not swapped, the run untouched', () => {
+      const run = [split(1)];
+      expect(gameReceiptOf({ aram: false, rated: true, seats: seats(), splits: run })).toEqual({
+        kind: 'rolled',
+        splits: run,
+        chosen: run[0],
+        swapped: false,
+      });
+    });
+  });
+
+  describe('kickoffOddsFor', () => {
+    it('reads a custom or unrolled record whose teams are the scoreboard, side for side', () => {
+      expect(kickoffOddsFor(custom(), traded())).toBe(0.41);
+      expect(kickoffOddsFor({ ...custom(), kind: 'unrolled' }, traded())).toBe(0.41);
+    });
+
+    it('ignores a rolled record, a missing one, and one the scoreboard disagrees with', () => {
+      expect(
+        kickoffOddsFor({ kind: 'rolled', blue: BLUE, red: RED, at: 'x', swapped: false }, seats()),
+      ).toBeNull();
+      expect(kickoffOddsFor(null, traded())).toBeNull();
+      expect(kickoffOddsFor(undefined, traded())).toBeNull();
+      // The end of game wins: the record names other sides.
+      expect(kickoffOddsFor(custom(), seats(TRADED_RED, TRADED_BLUE))).toBeNull();
+    });
+  });
+
+  describe('playedOddsOf and postedOdds', () => {
+    it('rolled and played: the stored odds and the pick number', () => {
+      const played = playedOddsOf({ aram: false, rated: true, seats: seats(), chosen: chosen(0.62, 2) });
+      expect(played).toEqual({ kind: 'rolled', blueWinProb: 0.62, rank: 2, swapped: false });
+      expect(postedOdds(played, chosen())).toBe(0.62);
+    });
+
+    it('swapped sides: 1 - p, the pick number kept', () => {
+      const played = playedOddsOf({
+        aram: false,
+        rated: true,
+        seats: seats(RED, BLUE),
+        chosen: chosen(0.62, 2),
+      });
+      expect(played.kind).toBe('rolled');
+      expect(played.blueWinProb).toBeCloseTo(0.38, 10);
+      expect(played).toMatchObject({ rank: 2, swapped: true });
+    });
+
+    it('changed teams: the kickoff odds, else preGameOdds over the befores; never the split', () => {
+      const withRecord = playedOddsOf({
+        aram: false,
+        rated: true,
+        seats: traded(),
+        chosen: chosen(),
+        kickoff: custom(),
+      });
+      expect(withRecord).toEqual({ kind: 'pre-game', blueWinProb: 0.41, rank: null, swapped: false });
+      expect(postedOdds(withRecord, chosen())).toBe(0.41);
+      const without = playedOddsOf({ aram: false, rated: true, seats: traded(), chosen: chosen() });
+      expect(without.blueWinProb).toBe(0.5);
+    });
+
+    it('changed teams on a not-rated game or an ARAM: none', () => {
+      for (const flags of [
+        { aram: false, rated: false },
+        { aram: true, rated: false },
+      ]) {
+        const played = playedOddsOf({ ...flags, seats: traded(), chosen: chosen(), kickoff: custom() });
+        expect(played).toEqual({ kind: 'none', blueWinProb: null, rank: null, swapped: false });
+        expect(postedOdds(played, chosen())).toBeNull();
+      }
+    });
+
+    it('unrolled: the compact surfaces stay without odds, as before', () => {
+      const played = playedOddsOf({
+        aram: false,
+        rated: true,
+        seats: traded(),
+        chosen: null,
+        kickoff: { ...custom(), kind: 'unrolled' },
+      });
+      expect(played.kind).toBe('pre-game');
+      expect(postedOdds(played, null)).toBeNull();
+    });
+  });
+
+  describe('rolledOddsOf', () => {
+    it("is the bot's claim for its own teams only", () => {
+      expect(rolledOddsOf(chosen(0.62), seats())).toBe(0.62);
+      expect(rolledOddsOf(chosen(0.62), seats(RED, BLUE))).toBeCloseTo(0.38, 10);
+      expect(rolledOddsOf(chosen(0.62), traded())).toBeNull();
+    });
+  });
+
+  describe('splitRolesFor', () => {
+    it('gives the split lanes to a team on either side, none to a changed side', () => {
+      const roles = splitRolesFor(chosen(), seats(RED, BLUE));
+      expect(roles.get('r1')).toBe('top');
+      expect(roles.get('b5')).toBe('support');
+      const changed = splitRolesFor(chosen(), traded());
+      expect(changed.size).toBe(0);
+      expect(splitRolesFor(null, seats()).size).toBe(0);
+    });
+
+    it('keeps the lanes of the team that stayed when only the other side changed', () => {
+      const oneSide = seats(BLUE, ['r1', 'r2', 'r3', 'r4', 'x5']);
+      const roles = splitRolesFor(chosen(), oneSide);
+      expect([...roles.keys()].sort()).toEqual([...BLUE].sort());
+    });
+  });
+
+  describe('calibrationGameOf', () => {
+    const candidate = (seatsOf: ReceiptSeat[], winningSide: 100 | 200 = 100): CalibrationCandidate => ({
+      aram: false,
+      winningSide,
+      rated: true,
+      seats: seatsOf,
+      chosen: { ...split(1, { blueWinProb: 0.62 }), oddsModel: 'kustom' },
+    });
+
+    it('counts swapped sides with the odds flipped, and never the changed-teams game', () => {
+      const flipped = calibrationGameOf(candidate(seats(RED, BLUE)));
+      expect(flipped?.blueWinProb).toBeCloseTo(0.38, 10);
+      expect(flipped?.blueWon).toBe(true);
+      expect(calibrationGameOf(candidate(traded()))).toBeNull();
+    });
   });
 });
