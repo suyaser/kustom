@@ -17,7 +17,7 @@ import {
 } from '@customs/core';
 import type { SideValue } from '@customs/db';
 import { gameModeFromRaw, matchesQueue } from '../games/queue';
-import { MIN_RATED_DURATION_S, PLAYERS_PER_GAME } from '../lobbyState';
+import { MIN_RATED_DURATION_S, MIN_RIFT_RATED_DURATION_S, PLAYERS_PER_GAME } from '../lobbyState';
 
 /**
  * The middle of the rating fold, written once (M5.2).
@@ -176,8 +176,11 @@ export function gateGame<T extends FoldGatePlayer>(players: readonly T[], durati
  *
  * `game-mode` is only ever produced by {@link gateRatedGame}: it is not a reason a game fails to
  * count on `/stats`, which is exactly the point of there being two gates.
+ *
+ * `early-end` (M23.1): a Rift game under {@link MIN_RIFT_RATED_DURATION_S}, which ended because
+ * people left. Rating only, like `game-mode`: it was played, so it still counts on `/stats`.
  */
-export type RatedSkipReason = FoldSkipReason | 'game-mode' | 'not-rated';
+export type RatedSkipReason = FoldSkipReason | 'game-mode' | 'early-end' | 'not-rated';
 
 export type RatedGate<T extends FoldGatePlayer = FoldPlayer> =
   | { ok: true; blue: T[]; red: T[] }
@@ -225,6 +228,7 @@ export function gateRatedGame<T extends FoldGatePlayer>(
   const gate = gateGame(players, durationS);
   if (!gate.ok) return gate;
   if (!isRatedMode(raw)) return { ok: false, reason: 'game-mode' };
+  if (durationS < MIN_RIFT_RATED_DURATION_S) return { ok: false, reason: 'early-end' };
   if (!rated) return { ok: false, reason: 'not-rated' };
   return gate;
 }

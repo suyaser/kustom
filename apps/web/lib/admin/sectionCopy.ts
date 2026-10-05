@@ -104,6 +104,8 @@ export const RATED_NO_ARAM = 'No · ARAM';
 export const RATED_NO_OTHER_MAP = 'No · not Summoner’s Rift';
 export const ratedNoRule = (ruleName: string): string => `No · ${ruleName}`;
 export const RATED_NO_SWITCHED_OFF = 'No · Rated was off';
+/** M23.1: an admin voided the game. [NEW COPY] */
+export const RATED_NO_VOIDED = 'No · voided';
 export const RATED_NO_GATE = 'No · too short or not ten players';
 /** M15.13: a game from before the owner's latest Reset ratings. [NEW COPY] */
 export const RATED_NO_BEFORE_RESET = 'No · before the ratings reset';
@@ -122,6 +124,8 @@ export function ratedLabel(reason: RatedReason): string {
       return ratedNoRule(ruleLabel(reason.rule));
     case 'switched-off':
       return RATED_NO_SWITCHED_OFF;
+    case 'voided':
+      return RATED_NO_VOIDED;
     case 'gate':
       return RATED_NO_GATE;
     case 'before-reset':

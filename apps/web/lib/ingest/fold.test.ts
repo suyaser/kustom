@@ -124,6 +124,16 @@ describe('gateRatedGame', () => {
     expect(gateGame(ten(), 1_800).ok).toBe(true);
   });
 
+  it('never rates a Rift game under fifteen minutes (M23.1, game 717217f9: CLASSIC, 632 s), and still counts it', () => {
+    expect(gateRatedGame(ten(), 632, raw('CLASSIC'), true)).toEqual({ ok: false, reason: 'early-end' });
+    expect(gateRatedGame(ten(), 899, null, true)).toEqual({ ok: false, reason: 'early-end' });
+    expect(gateRatedGame(ten(), 900, raw('CLASSIC'), true).ok).toBe(true);
+    // After the map (a short ARAM is `game-mode`), before the stamp (a short unrated Rift game is `early-end`).
+    expect(gateRatedGame(ten(), 632, raw('KIWI'), true)).toEqual({ ok: false, reason: 'game-mode' });
+    expect(gateRatedGame(ten(), 632, raw('CLASSIC'), false)).toEqual({ ok: false, reason: 'early-end' });
+    expect(gateGame(ten(), 632).ok).toBe(true);
+  });
+
   it('hands back exactly what gateGame did when it passes', () => {
     expect(gateRatedGame(ten(), 1_800, raw('CLASSIC'), true)).toEqual(gateGame(ten(), 1_800));
   });

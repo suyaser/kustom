@@ -117,6 +117,13 @@ describe('why a game is not rated (M14.53)', () => {
     expect(label({ players: folded })).toBe('Yes');
   });
 
+  it('No · voided for a game an admin voided, and a short Rift game is the gate (M23.1)', () => {
+    expect(ratedReason({ ...base, rated: false, voided: true })).toEqual({ kind: 'voided' });
+    expect(label({ rated: false, voided: true })).toBe('No · voided');
+    expect(label({ durationS: 632 })).toBe('No · too short or not ten players');
+    expect(label({ durationS: 632, gameMode: 'ARAM' })).toBe('No · ARAM');
+  });
+
   it('Waiting to be counted: nothing refuses it and no fold has run (a backfilled game)', () => {
     expect(ratedReason(base)).toEqual({ kind: 'waiting' });
     expect(label({})).toBe('Waiting to be counted');

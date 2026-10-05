@@ -237,6 +237,8 @@ export type RatedReason =
   | { kind: 'not-rift' }
   | { kind: 'rule'; rule: RuleOption }
   | { kind: 'switched-off' }
+  /** M23.1: an admin voided it (`games.voided_at`); `Restore` on the game page undoes it. */
+  | { kind: 'voided' }
   /** M15.13: it started before the owner's latest Reset ratings (M14.18); the fold skips it for good. */
   | { kind: 'before-reset' }
   | { kind: 'waiting' };
@@ -254,6 +256,8 @@ export interface RatedReasonInput {
   startedAt: string;
   /** `groups.ratings_since`, the group's ratings epoch (M14.18), or null for a group that never reset. */
   ratingsSince: string | null;
+  /** M23.1: `games.voided_at` is set. */
+  voided?: boolean;
 }
 
 /** Pure: see {@link RatedReason}. */
@@ -261,6 +265,7 @@ export function ratedReason(game: RatedReasonInput): RatedReason {
   if (game.players.length > 0 && game.players.every((player) => player.rAfter !== null)) {
     return { kind: 'rated' };
   }
+  if (game.voided === true) return { kind: 'voided' };
   // The gate reads puuids only to refuse a duplicate; the player id is as unique and saves a join.
   const gate = gateRatedGame(
     game.players.map((player) => ({ puuid: player.playerId, side: player.side })),
@@ -312,7 +317,7 @@ export async function listCapturedGames(
     client
       .from('games')
       .select(
-        'id, lcu_game_id, started_at, duration_s, source, rated, rule, rule_class_tag, rule_region_blue, rule_region_red, gameMode:game_mode, lobbies(lcu_party_id), game_players(player_id, side, r_after)',
+        'id, lcu_game_id, started_at, duration_s, source, rated, rule, rule_class_tag, rule_region_blue, rule_region_red, voided_at, gameMode:game_mode, lobbies(lcu_party_id), game_players(player_id, side, r_after)',
       )
       .eq('group_id', groupId)
       .order('started_at', { ascending: false })
@@ -351,6 +356,7 @@ export async function listCapturedGames(
         },
         startedAt: row.started_at,
         ratingsSince,
+        voided: row.voided_at !== null,
       }),
       partyId: row.lobbies === null ? null : shortPartyId(row.lobbies.lcu_party_id),
     };

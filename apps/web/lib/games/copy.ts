@@ -123,3 +123,13 @@ export function teamTitle(side: 100 | 200): string {
 }
 
 export const NOT_RATED = 'not rated';
+
+/** M23.1 [NEW COPY]: a voided game's note, on its Games row and its page. */
+export const VOIDED_NOTE = 'Not rated · voided';
+/** M23.1 [NEW COPY]: the game page's admin buttons. */
+export const VOID_GAME = 'Void game';
+export const RESTORE_GAME = 'Restore';
+/** M23.1 [NEW COPY]: the notices after a void or a restore, and the refusal for a game never rated. */
+export const VOID_DONE = 'Voided. It no longer counts for ratings.';
+export const RESTORE_DONE = 'Restored. It counts for ratings again.';
+export const VOID_NOT_RATED = 'This game is not rated.';

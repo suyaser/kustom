@@ -13,6 +13,7 @@ export * from './foldBreakdown';
 export * from './gameFacts';
 export * from './gameMode';
 export * from './gamePlayerRatings';
+export * from './gameVoid';
 export * from './groups';
 export * from './invites';
 export * from './kickoff';
