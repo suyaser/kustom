@@ -5,6 +5,7 @@ import {
   type GameInsert,
   type GamePlayerInsert,
   type Json,
+  type LobbyStatusValue,
   scrubRawEogBlock,
 } from '@customs/db';
 import { invalidateGroup } from '../cache/tags';
@@ -17,7 +18,7 @@ import { gameFactsInsert, writeGameFacts } from '../stats/gameFacts';
 import { mergeDraftBans, rawFactsFromUnknown } from '../stats/rawFacts';
 import type { ServiceClient } from '../supabase';
 import { isRatedMode } from './fold';
-import { selectLatestLobby } from './lobby';
+import { selectGameLobby } from './lobby';
 import { BACKFILL_MIN_MEMBERS, countMembersByPuuid, ensureMemberships } from './memberships';
 import { ensurePlayers } from './players';
 import { storedStat } from './statValue';
