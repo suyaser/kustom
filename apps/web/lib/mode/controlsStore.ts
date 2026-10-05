@@ -27,6 +27,11 @@ export type ControlsWrite = 'mode' | 'spin' | 'rated' | RegionWrite;
 export interface CardMark {
   updatedAt: string | null;
   thisPair: string | null;
+  /**
+   * M20.18: this game's whole lock (`lockKey`: standing, rule, Rated) while the lobby is balanced,
+   * so another admin's this-game rule or Rated write clears the line too; absent or null: none.
+   */
+  thisLock?: string | null | undefined;
 }
 
 export interface ControlsState {

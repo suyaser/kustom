@@ -240,8 +240,11 @@ describe('this game: the balanced lobby locked region wars', () => {
   it('this game controls under a This game heading; members get none', async () => {
     const view = render(page('balanced', { rule: 'region' }));
     await ready();
+    // M20.18: the `This game` legend heads everything that changes this game (the picker, Spin,
+    // this game's pair and Rated); the pair's own fieldset sits inside it.
     const group = screen.getByRole('group', { name: 'This game' });
-    expect(group).toHaveAttribute('data-slot', 'region-controls-this');
+    expect(group).toHaveAttribute('data-slot', 'mode-this-game');
+    expect(group.querySelector('[data-slot="region-controls-this"]')).not.toBeNull();
     expect((within(group).getByRole('combobox', { name: "Blue's region" }) as HTMLSelectElement).value).toBe(
       'ionia',
     );
@@ -284,17 +287,19 @@ describe('this game: the balanced lobby locked region wars', () => {
     await ready();
     const thisGame = screen.getByRole('group', { name: 'This game' });
     const next = nextPair();
-    // 05-design 8.3.1: the next game's pair has no heading (the `Next game` picker is above it).
-    expect(next.querySelector('legend')).toBeNull();
+    // M20.18: balanced, the picker is this game's, so the next game's pair is the only thing left
+    // below the hairline, and it is headed `Next game` itself (the picker no longer says it).
+    expect(next.querySelector('legend')).toHaveTextContent('Next game');
+    expect(screen.getByRole('group', { name: 'Next game' })).toBe(next);
     expect(screen.getAllByRole('button', { name: 'Redraw regions' })).toHaveLength(2);
-    // The next-game group opens on a hairline, with the caption at its top: never under this
-    // game's Redraw.
-    const caption = screen.getByText('Changes apply from the next game.');
-    const group = caption.parentElement as HTMLElement;
+    // The next-game group opens on a hairline, never under this game's Redraw; no caption there
+    // (nothing below it is a mode change).
+    const group = next.parentElement as HTMLElement;
     expect(group.className).toContain('border-t');
-    expect(group).toContainElement(next);
-    expect(group).toContainElement(screen.getByRole('combobox', { name: 'Next game' }));
     expect(group).not.toContainElement(thisGame);
+    expect(thisGame).not.toContainElement(next);
+    expect(screen.queryByText('Changes apply from the next game.')).toBeNull();
+    expect(screen.queryByRole('combobox', { name: 'Next game' })).toBeNull();
     expect(screen.queryByText('Next game: Region wars.')).toBeNull();
     expect(screen.getAllByText('Next game')).toHaveLength(1);
   });

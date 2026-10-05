@@ -25,8 +25,7 @@ import { withHostPresence } from '@/lib/tonight/hosts';
 import { labelSnapshot, lobbyPeople } from '@/lib/tonight/labels';
 import { loadLiveVersionOrNone } from '@/lib/tonight/liveVersion';
 import { loadTonight } from '@/lib/tonight/load';
-import { loadLobbyPassword, maySeeLobbyPassword, withLobbyPassword } from '@/lib/tonight/lobbyPassword';
-import { loadLobbyStartOrNone } from '@/lib/tonight/lobbyStart';
+import { loadLobbyPassword, withLobbyPassword } from '@/lib/tonight/lobbyPassword';
 import { nightTimeZone, tonightStart } from '@/lib/tonight/night';
 import { withSelection } from '@/lib/tonight/selection';
 import { loadSitOutPreviewOrNone, loadSitOutRuleOrNone } from '@/lib/tonight/sitOutPreview';
@@ -109,14 +108,6 @@ export default async function TonightPage({ params, searchParams }: TonightPageP
   const rosterInputs = cachedRosterInputs(group.id);
   // Awaited through `loadRosterLabels`, which turns a failure into plain names; never unhandled.
   rosterInputs.catch(() => undefined);
-  // The pending `create_lobby` carries the new lobby's password: members only (M14.28).
-  const lobbyStartRead = viewerRead.then((viewer) =>
-    maySeeLobbyPassword(viewer)
-      ? loadLobbyStartOrNone(getServiceClient(), { timeZone, groupId: group.id })
-      : null,
-  );
-  // Awaited in the second wave; never unhandled if the first wave throws before it gets there.
-  lobbyStartRead.catch(() => undefined);
   // M19.10: the group's live version, read beside the night and never newer than it (`liveVersion.ts`).
   const renderStart = Date.now();
   const [anonSnapshot, viewer, top, mystery, admins, hostPresence, liveVersion] = await Promise.all([
@@ -140,7 +131,7 @@ export default async function TonightPage({ params, searchParams }: TonightPageP
     }),
     hasDailyPage ? loadMysteryCachedOrNone(now, group.id, timeZone) : Promise.resolve(null),
     loadAdminNamesCachedOrNone(group.id),
-    // M14.66: who hosts and whether any is up, so idle can name who to ask before a tap.
+    // M14.66: who hosts and whether any is up, so idle can name who to ask.
     loadHostPresenceCachedOrNone(group.id, now),
     loadLiveVersionOrNone(client, group.id, renderStart),
   ]);
@@ -182,13 +173,12 @@ export default async function TonightPage({ params, searchParams }: TonightPageP
         : null;
   const night = new Date(labelled.nightStart);
   const showsYourNight = viewer.kind === 'linked' && (state.kind === 'idle' || state.kind === 'result');
-  const [snapshot, lobbyStart, lastGame, calibration, wouldSitOut, yourNight, sitOutRule, recap, breakdown] =
+  const [snapshot, lastGame, calibration, wouldSitOut, yourNight, sitOutRule, recap, breakdown] =
     await Promise.all([
       // The password only for a linked member of this group, read with the service role (M14.28).
       withLobbyPassword(labelled, viewer, group.id, (lobbyId, groupId) =>
         loadLobbyPassword(getServiceClient(), lobbyId, groupId),
       ),
-      lobbyStartRead,
       state.kind === 'idle' ? loadLastGameCachedOrNone(group.id) : Promise.resolve(undefined),
       showsReceipt ? loadCalibrationOrNone(client, group.id) : Promise.resolve(null),
       overTen === null ? Promise.resolve(null) : loadSitOutPreviewOrNone(overTen, group.id, timeZone),
@@ -215,7 +205,6 @@ export default async function TonightPage({ params, searchParams }: TonightPageP
         group={group}
         topPlayers={top.rows}
         topFallback={top.fallback}
-        lobbyStart={lobbyStart}
         mystery={mystery}
         admins={admins}
         lastGame={lastGame}

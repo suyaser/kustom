@@ -28,8 +28,8 @@ import { type MeAuthResult, type MeIdentity, resolveMe } from './identity';
  * can be in several groups, so after the parse the wrapper looks up the session player's
  * membership in that group and hands the handler `context.role` — `admin`, `member`, or `null`
  * for a linked player who is not in the group (and for an unlinked visitor, who has no row to be
- * in). Each handler decides what `null` means: `/api/me/lobbies/start` and `/api/me/role-tonight`
- * refuse it, `/api/me/link` — the route for a visitor with no player yet — does not ask.
+ * in). Each handler decides what `null` means: `/api/me/role-tonight`
+ * refuses it, `/api/me/link` — the route for a visitor with no player yet — does not ask.
  *
  * Cross-site forgery: the session cookies `@supabase/ssr` writes are `SameSite=Lax`, which a
  * browser does not attach to a cross-site POST, so a form on someone else's page arrives here

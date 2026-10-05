@@ -732,7 +732,7 @@ describe('the live tag and the tab dot', () => {
 });
 
 describe('the polls', () => {
-  it('M19.17: never re-renders on a timer for a pending Start a lobby (StartLobby polls its own route)', async () => {
+  it('never re-renders on a timer while nobody is nameless (M19.17)', async () => {
     draw();
     await act(async () => {
       await vi.advanceTimersByTimeAsync(60_000);

@@ -1,6 +1,6 @@
 'use client';
 
-import { type ModeLock, nextRated, RULE_OPTIONS, ruleKey } from '@customs/core';
+import { lockRated, type ModeLock, nextRated, RULE_OPTIONS, ruleKey } from '@customs/core';
 import type { LobbyStatusValue, RoleValue } from '@customs/db';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
@@ -23,6 +23,7 @@ import type { PageGroup } from '@/lib/groups/pageGroup';
 import { LANE_ORDER } from '@/lib/laneOrder';
 import {
   type ClassFacts,
+  lockSelectValue,
   type ModeCardView,
   modeCardViewFrom,
   type NormalNoteFacts,
@@ -31,10 +32,18 @@ import {
   regionTargets,
   selectValue,
   showsFearlessPool,
+  tooFewForLock,
   tooFewFrom,
   type UnplayableRules,
 } from '@/lib/mode/cardView';
-import { type ModeSlice, poolClearedSince, useModeSlice, useThisGameNotice } from '@/lib/mode/clientStore';
+import {
+  lockKey,
+  type ModeSlice,
+  poolClearedSince,
+  useModeSlice,
+  useThisGameLock,
+  useThisGameNotice,
+} from '@/lib/mode/clientStore';
 import {
   MODE_ACTIONS,
   MODE_CARD_LABEL,
@@ -140,6 +149,17 @@ export function ModeCardBody(props: ModeCardBodyProps) {
   const { group, variant, viewerLane, viewerSide, live } = props;
   const readFailed = live?.readFailed === true;
   const merged = useModeSlice(group.id, live?.slice ?? NO_SLICE, true, readFailed);
+  // M20.18: this game's lock, with this page's own `this` answers on it at once (balanced only:
+  // in game the lock is frozen, so nothing patches it).
+  const lock =
+    useThisGameLock(
+      group.id,
+      live !== null && live.lock !== null && live.lobbyStatus === 'balanced' && live.lobbyId != null
+        ? { lobbyId: live.lobbyId, lock: live.lock }
+        : null,
+    ) ??
+    live?.lock ??
+    null;
   const poolCleared = live !== null && poolClearedSince(live.slice, merged);
   const view: ModeCardView =
     live === null
@@ -147,7 +167,7 @@ export function ModeCardBody(props: ModeCardBodyProps) {
       : modeCardViewFrom({
           row: merged.row,
           lobbyStatus: live.lobbyStatus,
-          lock: live.lock,
+          lock,
           classFacts: live.classFacts,
           poolCleared,
           rowUpdatedAt: merged.updatedAt,
@@ -177,7 +197,7 @@ export function ModeCardBody(props: ModeCardBodyProps) {
       : regionTargets({
           row: merged.row,
           lobbyStatus: live.lobbyStatus,
-          lock: live.lock,
+          lock,
           facts: live.regions,
           poolCleared,
         });
@@ -193,9 +213,22 @@ export function ModeCardBody(props: ModeCardBodyProps) {
   if (controls !== null && live !== null) {
     // The controls show what is set (the pending rule, else the standing mode), before and after
     // Roll: never a prediction of what the record will leave (audit, owner bug 1).
+    // M20.18: balanced, the picker, Spin and Rated are this game's (the lock's values); in game
+    // the lock is frozen and they are the next game's, as before.
+    const thisGame =
+      live.lobbyStatus === 'balanced' && view.locked && lock !== null && live.lobbyId != null
+        ? {
+            lobbyId: live.lobbyId,
+            selected: lockSelectValue(lock),
+            rated: lockRated(lock),
+            standing: lock.standing,
+            tooFew: tooFewForLock(lock, live.unplayable, poolCleared),
+          }
+        : null;
     controls = {
       ...controls,
       inGame: view.locked || variant === 'in-game',
+      thisGame,
       selected: selectValue(merged.row),
       tooFew: tooFewFrom(merged.row, live.unplayable, poolCleared),
       nextRated: nextRated(merged.row),
@@ -206,6 +239,7 @@ export function ModeCardBody(props: ModeCardBodyProps) {
       card: {
         updatedAt: merged.updatedAt,
         thisPair: targets.this === null ? null : `${targets.this.blue}|${targets.this.red}`,
+        thisLock: thisGame === null || lock === null ? null : lockKey(lock),
       },
     };
   }

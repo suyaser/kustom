@@ -29,6 +29,7 @@ export async function loadModePanelView(
   const [{ mode, modeSince: _since, ...fearless }, row, lobby] = await Promise.all([
     loadFearless(client, groupId),
     loadModeState(client, groupId),
+    // TODO(M22.6): pass the panel's `?lobby=` through as `{ lobbyId }` so the lock is the selected table's.
     loadTonightLobbyLock(client, groupId, nightStart),
   ]);
   const view = modeCardView({

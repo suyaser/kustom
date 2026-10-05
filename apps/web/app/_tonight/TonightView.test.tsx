@@ -2,7 +2,6 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { SIDE_LINE_AUTO } from '@/lib/discord/embeds';
 import { ORIGINAL_GROUP } from '@/lib/groups/pageGroup';
-import { START_LOBBY_BUTTON } from '@/lib/lobbyStartCopy';
 import { applyModeRow, resetModeStoreForTests } from '@/lib/mode/clientStore';
 import { groupHref } from '@/lib/nav';
 import {
@@ -96,21 +95,21 @@ describe('every state leads with its headline and its primary action', () => {
     );
   });
 
-  it('idle: the last game as a poster, the top five, Start a lobby and the Daily card', () => {
+  it('idle: the last game as a poster, the top five and the Daily card; no lobby press (M22.11)', () => {
     draw('idle');
     expect(h1()).toBe('NOBODY IN YET');
     const last = screen.getByRole('region', { name: LAST_GAME_TITLE });
     expect(within(last).getByText(/Red won\./)).toBeInTheDocument();
     expect(within(last).getByRole('link', { name: 'See the game' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: START_LOBBY_BUTTON })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /lobby/i })).toBeNull();
     expect(screen.getByRole('heading', { name: TOP_TITLE })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Guess the Award/ })).toBeInTheDocument();
   });
 
-  it('idle, signed out: the sign-in line instead of the button', () => {
+  it('idle, signed out: no lobby press and no sign-in in its place (M22.11)', () => {
     draw('idle', { viewer: ANON_VIEWER });
-    expect(screen.queryByRole('button', { name: START_LOBBY_BUTTON })).toBeNull();
-    expect(screen.getByRole('button', { name: 'Sign in with Discord' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /lobby/i })).toBeNull();
+    expect(screen.queryByText(/to start a lobby/i)).toBeNull();
   });
 
   it('filling: the count in the headline, one roster, the open seats as one line, still needed', () => {
@@ -207,9 +206,8 @@ describe('every state leads with its headline and its primary action', () => {
       return { snapshot: { ...base, hostNames, hostSeenRecently } };
     };
 
-    it('idle, no host seen in ten minutes: the line under Start a lobby names the hosts', () => {
+    it('idle, no host seen in ten minutes: the strip line names the hosts', () => {
       draw('idle', { viewer: MEMBER_VIEWER, ...away(['Yasser', 'Omar']) });
-      expect(screen.getByRole('button', { name: START_LOBBY_BUTTON })).toBeInTheDocument();
       expect(
         screen.getByText("Nobody's Kustom is running right now. Ask Yasser or Omar to open it."),
       ).toBeInTheDocument();
@@ -272,7 +270,7 @@ describe('every state leads with its headline and its primary action', () => {
     expect(screen.queryAllByRole('button', { name: 'Sign in with Discord' })).toHaveLength(0);
   });
 
-  it('finished: RED WINS, the odds were, the result line, deltas, MVP and ACE, Start the next lobby', () => {
+  it('finished: RED WINS, the odds were, the result line, deltas, MVP and ACE, no lobby press (M22.11)', () => {
     draw('finished');
     expect(h1()).toBe('RED WINS');
     const receipt = screen.getByRole('region', { name: TITLE_FINISHED });
@@ -285,7 +283,7 @@ describe('every state leads with its headline and its primary action', () => {
       within(screen.getByRole('region', { name: side })).queryAllByText(/^(gained|lost) \d+$/),
     );
     expect(deltas.length).toBe(10);
-    expect(screen.getByRole('button', { name: 'Start the next lobby' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /lobby/i })).toBeNull();
     expect(screen.getByText('Won')).toBeInTheDocument();
   });
 
@@ -737,7 +735,7 @@ describe('M14.41 gap 2: the admin press is in the strip', () => {
     return header;
   };
 
-  it('Roll teams (over ten), Reroll (balanced), Start a lobby (finished) sit inside the strip', () => {
+  it('Roll teams (over ten), Reroll (balanced) sit inside the strip; finished has no press (M22.11)', () => {
     const over = draw('over-ten', { viewer: ADMIN_VIEWER });
     expect(within(strip()).getByRole('button', { name: ROLL_LABEL })).toBeInTheDocument();
     over.unmount();
@@ -745,7 +743,7 @@ describe('M14.41 gap 2: the admin press is in the strip', () => {
     expect(within(strip()).getByRole('button', { name: REROLL_LABEL })).toBeInTheDocument();
     balanced.unmount();
     draw('finished');
-    expect(within(strip()).getByRole('button', { name: 'Start the next lobby' })).toBeInTheDocument();
+    expect(within(strip()).queryByRole('button')).toBeNull();
   });
 
   it('members and visitors get no new element: no roll, no reroll, anywhere', () => {

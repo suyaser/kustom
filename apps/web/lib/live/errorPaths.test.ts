@@ -15,8 +15,7 @@ import { LiveChanges } from './bump';
 /**
  * M19.9 review: a write that lands and is followed by a throw must still bump, because the retry
  * is a no-op and would never bump. One test per route shape, against fakes so it runs in CI; the
- * shapes that need the database (Roll, Reroll, fearless reset, Start a lobby, the ack, lobby ingest,
- * the eog) are in `liveErrorPaths.integration.test.ts`.
+ * shapes that need the database (Roll, Reroll, fearless reset, lobby ingest, the eog) are in `liveErrorPaths.integration.test.ts`.
  */
 
 const GROUP = '00000000-0000-4000-8000-00000000000a';

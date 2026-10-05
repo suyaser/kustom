@@ -121,7 +121,7 @@ export interface TonightPress {
 }
 
 /**
- * A press is leaving for its route (Roll, Reroll, Start a lobby, Set mode, Spin, Rated): Tonight
+ * A press is leaving for its route (Roll, Reroll, Set mode, Spin, Rated): Tonight
  * holds its renders until the press answers, so the route's own Realtime rows and its answer
  * become one render instead of one mid-write and one after (M19.3). Call `answered` with the
  * answer's time, or `release` when there is nothing to re-read; the hold also ends by itself.

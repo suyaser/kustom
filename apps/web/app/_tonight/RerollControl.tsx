@@ -27,8 +27,8 @@ import { usePageGroup } from '../_shell/PageGroup';
  * navigates at all and the promoted split arrives through Realtime like every other change,
  * which is what keeps the strip from scrolling under a thumb.
  *
- * **Quiet while a press is in flight, never `disabled`** (M3.20, the rule `RollControl` and
- * `StartLobby` follow): a disabled control drops the focus to `<body>`. The real attribute is
+ * **Quiet while a press is in flight, never `disabled`** (M3.20, the rule `RollControl`
+ * follows too): a disabled control drops the focus to `<body>`. The real attribute is
  * kept for the one permanent case, the last split on the board, where there is nothing left to
  * press and `NO_MORE_SPLITS` says so beside it.
  */

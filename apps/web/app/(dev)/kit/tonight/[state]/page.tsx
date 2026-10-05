@@ -169,7 +169,7 @@ export default async function KitTonightPage({
       ? { ...built, snapshot: { ...built.snapshot, tape: withRules(built.snapshot.tape) } }
       : built;
   // M14.66: `?host=away` (no host seen in ten minutes, two hosts by name) or `?host=many` (four, so
-  // the line says `whoever hosts`): the no-host line under `Start a lobby` on idle.
+  // the line says `whoever hosts`): the no-host line in the idle strip.
   const fixture =
     host === 'away' || host === 'many'
       ? {

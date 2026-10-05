@@ -1,12 +1,12 @@
 import type { CompanionCommandKind } from '@customs/db/schemas';
 
 /**
- * The seam M4.2 fills, and nothing else. The same shape as `lib/ingest/hooks.ts`, for the same
- * reason: the queue decides what happened, something else decides what to do about it.
+ * The queue's settle seam. The same shape as `lib/ingest/hooks.ts`, for the same reason: the
+ * queue decides what happened, something else decides what to do about it.
  *
- * `POST /api/companion/commands/{id}/ack` and `.../nack` announce a settled row here. M4.2
- * hangs the invite fan-out off `onAcked` — a `create_lobby` that came back with a `partyId` is
- * the moment the invites are worth sending, and the queue must not have to know that.
+ * `POST /api/companion/commands/{id}/ack` and `.../nack` announce a settled row here. M4.2 hung
+ * the invite fan-out off `onAcked`; M22.11 removed it with the lobby press, so nothing in
+ * production listens today. The seam stays: it is the queue's contract and its tests use it.
  *
  * A hook that throws is logged and the response still goes out: the companion has already done
  * the work and its ack must not fail because a listener did.
@@ -16,7 +16,7 @@ import type { CompanionCommandKind } from '@customs/db/schemas';
 export interface CommandAckedEvent {
   commandId: string;
   targetPlayerId: string;
-  /** The command's group, which is its target token's (M13.3). The invite fan-out stays inside it. */
+  /** The command's group, which is its target token's (M13.3). */
   groupId: string;
   kind: CompanionCommandKind;
   status: 'acked' | 'failed';

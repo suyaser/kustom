@@ -1,5 +1,6 @@
 import { rateGameKustom, winProbability } from '@customs/core';
 import { describe, expect, it, vi } from 'vitest';
+import { foldBlueWinProb } from '../games/receipt';
 import {
   BREAKDOWN_COLUMNS,
   type BreakdownGame,
@@ -160,6 +161,25 @@ describe('rowReason (M18.6)', () => {
     expect(rowReason(broken, 'r1')).toBeNull();
     expect(spy).toHaveBeenCalled();
     spy.mockRestore();
+  });
+});
+
+describe('ratingBlueWinProb and foldBlueWinProb agree (one rule)', () => {
+  it('returns the same number or null on every shape of rows', () => {
+    const game = storedGame();
+    const cases: (readonly BreakdownRow[])[] = [
+      game.rows,
+      game.rows.map((row) => ({ ...row, rAfter: null, foldP: null })),
+      game.rows.map((row, i) => (i === 7 ? { ...row, foldP: null } : row)),
+      game.rows.map((row, i) => (i === 2 ? { ...row, rAfter: null } : row)),
+      game.rows.slice(1),
+      game.rows.map((row) => ({ ...row, side: 100 as const })),
+      [],
+    ];
+    expect(ratingBlueWinProb(game.rows)).not.toBeNull();
+    for (const rows of cases) {
+      expect(ratingBlueWinProb(rows)).toBe(foldBlueWinProb(rows));
+    }
   });
 });
 

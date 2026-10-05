@@ -4,7 +4,6 @@ import { createClient } from '@supabase/supabase-js';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { AdminAuthResult } from '@/lib/adminAuth';
 import { mintCompanionToken } from '@/lib/companionAuth';
-import type { MeAuthResult } from '@/lib/me/identity';
 import { eogBody, lobbyBody, testGameId } from '@/lib/testing/fixtures';
 import { createTestGroups, deleteTestGroups, setTestMembership } from '@/lib/testing/groups';
 import { resolveLocalStack } from '@/lib/testing/localStack';
@@ -12,8 +11,7 @@ import { expectBumpedLast, installWriteRecorder, type RecordedWrite } from '@/li
 
 /**
  * M19.9 review: a route whose write has landed must bump even when a later step throws (the
- * Discord post, the balance after Roll's claim, the membership insert after the member rows, the
- * fan-out after an ack). The retry is a no-op (`already_rolled`, `promoted: false`, a frozen or
+ * Discord post, the balance after Roll's claim, the membership insert after the member rows). The retry is a no-op (`already_rolled`, `promoted: false`, a frozen or
  * unchanged roster) and would never bump, so a missed bump here is a page that never updates.
  *
  * Each case flips one switch that makes the step after the write throw, through the real handler
@@ -30,8 +28,6 @@ const fail = vi.hoisted(() => ({
   post: false,
   balance: false,
   memberships: false,
-  enqueue: false,
-  ack: false,
 }));
 
 vi.mock('@/lib/discord/post', async (importOriginal) => {
@@ -67,23 +63,6 @@ vi.mock('@/lib/ingest/memberships', async (importOriginal) => {
     ensureMemberships: async (...args: Parameters<typeof actual.ensureMemberships>) => {
       if (fail.memberships) throw new Error('membership insert failed');
       return actual.ensureMemberships(...args);
-    },
-  };
-});
-
-vi.mock('@/lib/commands/queue', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/lib/commands/queue')>();
-  return {
-    ...actual,
-    enqueueCommands: async (...args: Parameters<typeof actual.enqueueCommands>) => {
-      const queued = await actual.enqueueCommands(...args);
-      if (fail.enqueue) throw new Error('the answer was lost after the insert');
-      return queued;
-    },
-    ackCommand: async (...args: Parameters<typeof actual.ackCommand>) => {
-      const settled = await actual.ackCommand(...args);
-      if (fail.ack) throw new Error('the fan-out crashed after the ack');
-      return settled;
     },
   };
 });
@@ -128,11 +107,9 @@ if (stack === null) {
 
   const { POST: postLobby } = await import('@/app/api/companion/lobby/route');
   const { POST: postGame } = await import('@/app/api/companion/game/route');
-  const { ackRoute } = await import('@/app/api/companion/commands/[id]/settle');
   const { rollRoute } = await import('@/app/api/admin/lobbies/[lobbyId]/roll/handler');
   const { rerollRoute } = await import('@/app/api/admin/lobbies/[lobbyId]/reroll/handler');
   const { fearlessResetRoute } = await import('@/app/api/admin/fearless/reset/handler');
-  const { startLobbyRoute } = await import('@/app/api/me/lobbies/start/handler');
   const { lobbyRosterKey } = await import('@/lib/ingest/lobby');
   const { ensurePlayers } = await import('@/lib/ingest/players');
 
@@ -195,12 +172,6 @@ if (stack === null) {
         email: null,
         discordName: null,
       },
-    }),
-  });
-  const asMe = (puuid: string) => ({
-    authorize: async (): Promise<MeAuthResult> => ({
-      ok: true,
-      me: { userId: randomUUID(), discordId: `8${runId}`, player: { playerId: id(puuid), puuid } },
     }),
   });
 
@@ -366,46 +337,6 @@ if (stack === null) {
       const retry = await recorded(() => postGame(companion('game', body)));
       expect(retry.status).toBe(200);
       expectBumpedLast(retry.writes, [{ groupId: A, kind: 'game' }], { groups: [A, B] });
-    });
-
-    it('start a lobby: the command lands, the answer is lost: 500, `lobby` still bumps; the ack lands, the fan-out throws: same', async () => {
-      await db.from('companion_tokens').update({ last_seen_at: new Date().toISOString() }).eq('group_id', A);
-      fail.enqueue = true;
-      try {
-        const { status, writes } = await recorded(() =>
-          startLobbyRoute({
-            ...asMe(p(2)),
-            start: { gate: { create_lobby: true, invite: true, switch_side: false } },
-          })(json('me/lobbies/start', { groupId: A })),
-        );
-        expect(status).toBe(500);
-        expectBumpedLast(writes, [{ groupId: A, kind: 'lobby' }]);
-      } finally {
-        fail.enqueue = false;
-      }
-
-      const { data } = await db
-        .from('companion_commands')
-        .select('id')
-        .eq('group_id', A)
-        .eq('kind', 'create_lobby')
-        .eq('status', 'pending')
-        .single();
-      const commandId = data?.id ?? '';
-      fail.ack = true;
-      try {
-        const { status, writes } = await recorded(() =>
-          ackRoute(commandId)(
-            companion(`commands/${commandId}/ack`, {
-              result: { partyId: `le-${runId}-next`, lobbyName: 'next' },
-            }),
-          ),
-        );
-        expect(status).toBe(500);
-        expectBumpedLast(writes, [{ groupId: A, kind: 'lobby' }]);
-      } finally {
-        fail.ack = false;
-      }
     });
   });
 }

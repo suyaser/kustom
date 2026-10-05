@@ -25,8 +25,6 @@ import type { ServiceClient } from '../supabase';
  * | `POST /api/companion/game` `eog`/backfill   | game            | the game was stored, its bans merged, rated, a name refreshed, its lobby finished or its rule cleared |
  * | `POST /api/admin/lobbies/[id]/roll`         | split           | the teams went up (`rolled`, not `already_rolled`) |
  * | `POST /api/admin/lobbies/[id]/reroll`       | split           | a new split was chosen                       |
- * | `POST /api/me/lobbies/start`                | lobby           | the `create_lobby` command was queued        |
- * | `POST /api/companion/commands/[id]/ack|nack`| lobby           | a `create_lobby` command was settled (Start a lobby's pending state ends) |
  * | `POST /api/me/role-tonight`                 | lobby           | the role landed                              |
  * | `POST /api/admin/mode`, `/mode/spin`        | mode            | the card changed (`changed`)                 |
  * | `POST /api/admin/fearless/reset`            | mode            | always (the reset writes `reset_at`)         |

@@ -1,4 +1,4 @@
-import { HOST_WINDOW_MS } from '../lobbyStart';
+import { HOST_WINDOW_MS } from '../hostPresence';
 import type { ServiceClient } from '../supabase';
 import type { TokenSeen } from './tables';
 
