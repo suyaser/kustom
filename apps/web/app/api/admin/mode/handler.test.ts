@@ -149,8 +149,10 @@ describe('POST /api/admin/mode: each action is one patch of only its fields (M20
       state: { standing: 'normal', pending: null, rated: null, nextRated: true },
       notice: 'Rule cleared. Back to Normal.',
       changed: true,
-      mode: 'normal',
     });
+    // M20.8: the answer's `state` is the card; the old top-level `mode` field is gone.
+    expect(parsed.state.standing).toBe('normal');
+    expect(parsed).not.toHaveProperty('mode');
     expect(t.writes.map((w) => w.patch)).toEqual([{ standing: 'normal', pending: null, rated: null }]);
   });
 
