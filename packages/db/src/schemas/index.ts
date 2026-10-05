@@ -14,6 +14,7 @@ export * from './gameFacts';
 export * from './gamePlayerRatings';
 export * from './groups';
 export * from './invites';
+export * from './gameMode';
 export * from './kickoff';
 export * from './kustomRating';
 export * from './live';

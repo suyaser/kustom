@@ -84,7 +84,10 @@ export function recordResultOf(record: ModeRecord): RecordResult {
 /** The columns to insert. Pure. */
 export function stampColumns(input: StampInput): GameModeColumns {
   const { stamp } = recordResultOf(input);
-  const rule = ruleColumnsOf(stamp.mode);
+  // An ARAM (the end-of-game block's own mode, `recordedKind`) is never a Rift rule game, whatever
+  // lock its lobby held (owner bug 2026-10-05): the standing mode only, no rule. A remake keeps the
+  // rule it was cut short in. Neither is rated nor checked (core's stamp).
+  const rule = input.kind === 'aram' ? ruleColumnsOf({ id: stamp.standing }) : ruleColumnsOf(stamp.mode);
   const seats: CheckSeat[] = input.seats.map((seat) => ({
     side: seat.side,
     championId: seat.championId,

@@ -41,11 +41,15 @@ describe('matchesQueue', () => {
     expect(matchesQueue('KIWI', 'sr')).toBe(false);
   });
 
-  it('puts only ARAM on the ARAM list', () => {
+  it('puts the ARAM family on the ARAM list: ARAM, Mayhem (KIWI, KIWI_*), Poro King (owner bug 2026-10-05)', () => {
     expect(matchesQueue('ARAM', 'aram')).toBe(true);
     expect(matchesQueue('aram', 'aram')).toBe(true);
+    expect(matchesQueue('KIWI', 'aram')).toBe(true);
+    expect(matchesQueue(' kiwi_jade ', 'aram')).toBe(true);
+    expect(matchesQueue('KINGPORO', 'aram')).toBe(true);
     expect(matchesQueue('CLASSIC', 'aram')).toBe(false);
     expect(matchesQueue(null, 'aram')).toBe(false);
-    expect(matchesQueue('KIWI', 'aram')).toBe(false);
+    expect(matchesQueue('URF', 'aram')).toBe(false);
+    expect(matchesQueue('KIWIX', 'aram')).toBe(false);
   });
 });
