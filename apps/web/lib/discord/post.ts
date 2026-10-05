@@ -190,7 +190,7 @@ function teamsContext(
 /**
  * **Which lobby a post is about** (M22.7, 05-design 14.10): the label and `?lobby=` id for a post
  * about `lobbyId`, or `undefined` when fewer than two tables are live at `now` (the post's own
- * table counted), when `lobbyId` is not a row of a live table, or when the read fails (logged: the
+ * table counted, even an ended one), when `lobbyId` names no row, or when the read fails (logged: the
  * post goes out as the one-lobby post rather than not at all). `liveTables` is the one reader of
  * "the live lobbies"; the label is the table's first reporter's name tonight (`lib/lobbyLabel.ts`).
  */
@@ -202,10 +202,15 @@ export async function loadPostLobby(
 ): Promise<PostLobbyLabel | undefined> {
   if (lobbyId === null) return undefined;
   try {
-    const tables = await liveTables(client, groupId, now);
+    const live = await liveTables(client, groupId, now);
+    if (live.length === 0) return undefined;
+    // The post's own table counts even once it has ended (a pool post after its Kustoms moved on,
+    // 14.10): it is labelled from its own row whenever another table is live.
+    const found = live.find((table) => table.rowIds.includes(lobbyId));
+    const own = found ?? (await endedTable(client, groupId, lobbyId, live));
+    if (own === null) return undefined;
+    const tables = found === undefined ? [...live, own] : live;
     if (tables.length < 2) return undefined;
-    const own = tables.find((table) => table.rowIds.includes(lobbyId));
-    if (own === undefined) return undefined;
     const hosts = await loadPlayerNamesById(
       client,
       tables.flatMap((table) => (table.label.hostPlayerId === null ? [] : [table.label.hostPlayerId])),
@@ -224,6 +229,33 @@ export async function loadPostLobby(
     console.error('discord: reading the live lobbies failed; posting without a lobby label', error);
     return undefined;
   }
+}
+
+/**
+ * An ended table's label inputs from one of its rows, or null when the group has no such row or
+ * the row's party is still live (an older row of a live table is not a second table).
+ */
+async function endedTable(
+  client: ServiceClient,
+  groupId: string,
+  lobbyId: string,
+  live: readonly { partyId: string }[],
+): Promise<{ partyId: string; label: { hostPlayerId: string | null }; openedAt: string } | null> {
+  const { data, error } = await client
+    .from('lobbies')
+    .select('lcu_party_id, created_at, reported_by_player_id')
+    .eq('id', lobbyId)
+    .eq('group_id', groupId)
+    .maybeSingle();
+  if (error) throw new Error(`lobby lookup failed: ${error.message}`);
+  if (data === null || live.some((table) => table.partyId === data.lcu_party_id)) return null;
+  // ponytail: this row's reporter and created_at, not the party's first tonight; read the party's
+  // rows if a later cycle's post ever needs the night's first reporter.
+  return {
+    partyId: data.lcu_party_id,
+    label: { hostPlayerId: data.reported_by_player_id },
+    openedAt: data.created_at,
+  };
 }
 
 /** How many tables are live at `now` (M22.7: the Fearless reset's `both`/`every`), or 0 on a failed read. */

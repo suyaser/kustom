@@ -3,7 +3,7 @@ import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import type { Database } from '@customs/db';
 import { createClient } from '@supabase/supabase-js';
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { settleDetached } from '../afterResponse';
 import { mintCompanionToken } from '../companionAuth';
 import { ensurePlayers } from '../ingest/players';
@@ -11,6 +11,17 @@ import { eogBody, testGameId } from '../testing/fixtures';
 import { createTestGroups, deleteTestGroups, pinTestGroupMode, setTestMembership } from '../testing/groups';
 import { resolveLocalStack } from '../testing/localStack';
 import { rollForTest } from '../testing/roll';
+
+/** Flip on to make the label's `liveTables` read throw (the post must still go out, unlabelled). */
+const failing = vi.hoisted(() => ({ liveTables: false }));
+vi.mock('../liveTables', async (original) => {
+  const actual = await original<typeof import('../liveTables')>();
+  return {
+    ...actual,
+    liveTables: (...args: Parameters<typeof actual.liveTables>) =>
+      failing.liveTables ? Promise.reject(new Error('stubbed read failure')) : actual.liveTables(...args),
+  };
+});
 
 /**
  * M22.7 against the local stack: a post names its lobby while two or more are live at send time
@@ -44,7 +55,7 @@ if (stack === null) {
   const { POST: postLobby } = await import('@/app/api/companion/lobby/route');
   const { POST: postGame } = await import('@/app/api/companion/game/route');
   const { resetWebhookWarning } = await import('./webhook');
-  const { postTeamsForSplit } = await import('./post');
+  const { loadPostLobby, postTeamsForSplit } = await import('./post');
   const { editResultWithRecap } = await import('./aiEdit');
 
   const db = createClient<Database>(stack.url, stack.serviceRoleKey, {
@@ -204,11 +215,25 @@ if (stack === null) {
     expect((await postTeamsForSplit(db, splitId, { requestOrigin: ORIGIN })).status).toBe('posted');
     expect(posts).toHaveLength(1);
     const labelled = e1(posts[0]);
-    expect(labelled?.title).toBe("Ana's lobby · Teams are set");
+    expect(labelled?.title).toBe("Ana's lobby\u00a0· Teams are set");
     expect(labelled?.url).toBe(`${ORIGIN}/g/${slug}?lobby=${x.lobbyId}`);
     expect(labelled?.author?.url).toBe(`${ORIGIN}/g/${slug}?lobby=${x.lobbyId}`);
     const e4 = ((posts[0]?.body.embeds ?? []) as { url?: string }[])[3];
     expect(e4?.url).toBe(`${ORIGIN}/g/${slug}?lobby=${x.lobbyId}#how-the-bot-decided`);
+
+    // The label's read fails: logged, and the post still goes out as the one-lobby post.
+    failing.liveTables = true;
+    const quiet = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    posts = [];
+    try {
+      expect((await postTeamsForSplit(db, splitId, { requestOrigin: ORIGIN })).status).toBe('posted');
+    } finally {
+      failing.liveTables = false;
+      quiet.mockRestore();
+    }
+    expect(posts).toHaveLength(1);
+    expect(e1(posts[0])?.title).toBe('Teams are set');
+    expect(e1(posts[0])?.url).toBe(`${ORIGIN}/g/${slug}`);
 
     // X's game ends while Y is live: the result names Ana's lobby; its title still links the game.
     const gameId = testGameId() + 71;
@@ -233,7 +258,7 @@ if (stack === null) {
     const result = results[0];
     const game = await db.from('games').select('id').eq('lcu_game_id', gameId).single();
     if (game.error) throw new Error(game.error.message);
-    expect(e1(result)?.title).toBe("Ana's lobby · Blue wins · 32 min");
+    expect(e1(result)?.title).toBe("Ana's lobby\u00a0· Blue wins · 32 min");
     expect(e1(result)?.url).toBe(`${ORIGIN}/g/${slug}/games/${game.data.id}`);
     expect(e1(result)?.author?.url).toBe(`${ORIGIN}/g/${slug}?lobby=${x.lobbyId}`);
 
@@ -269,12 +294,41 @@ if (stack === null) {
     expect(posts).toHaveLength(1);
     expect(posts[0]?.method).toBe('PATCH');
     expect(e1(posts[0])).toEqual(e1(result));
-    expect(e1(posts[0])?.title).toBe("Ana's lobby · Blue wins · 32 min");
+    expect(e1(posts[0])?.title).toBe("Ana's lobby\u00a0· Blue wins · 32 min");
 
     // One table left (X, finished, in its walk back): the next post is the one-lobby post again.
     posts = [];
     expect((await postTeamsForSplit(db, splitId, { requestOrigin: ORIGIN })).status).toBe('posted');
     expect(e1(posts[0])?.title).toBe('Teams are set');
     expect(e1(posts[0])?.url).toBe(`${ORIGIN}/g/${slug}`);
+
+    // Ana's Kustom moves on to Z: X ends at once (its Kustoms moved on), Z is the one live table.
+    // A post about X (the pool post after its game) still counts X's own table: two, labelled.
+    await postMembers(`it-${runId}-party-Z`, tenX, tokens.ana);
+    const { liveTables } = await import('../liveTables');
+    expect((await liveTables(db, groupId, new Date())).map((table) => table.partyId)).toEqual([
+      `it-${runId}-party-Z`,
+    ]);
+    expect(await loadPostLobby(db, groupId, x.lobbyId, new Date())).toEqual({
+      lobbyId: x.lobbyId,
+      label: { kind: 'host', name: 'Ana', repeat: 1 },
+      live: 2,
+    });
+
+    // An older row of Z, from before tonight (so not among Z's rows): it is Z's table, still live,
+    // never a second one. One table, so no label.
+    const old = await db
+      .from('lobbies')
+      .insert({
+        group_id: groupId,
+        lcu_party_id: `it-${runId}-party-Z`,
+        status: 'finished',
+        reported_by_player_id: idOf.get(ANA) ?? '',
+        created_at: new Date(Date.now() - 3 * 86_400_000).toISOString(),
+      })
+      .select('id')
+      .single();
+    if (old.error) throw new Error(old.error.message);
+    expect(await loadPostLobby(db, groupId, old.data.id, new Date())).toBeUndefined();
   });
 }

@@ -209,7 +209,7 @@ export function lobbyLabelText(label: LobbyLabel): string {
  * their first word. Part of the never-cut title (10.12): no new give-way step.
  */
 export function labelledTitle(title: string, lobbyLabel: PostLobbyLabel | undefined): string {
-  return lobbyLabel === undefined ? title : `${lobbyLabelText(lobbyLabel.label)} · ${title}`;
+  return lobbyLabel === undefined ? title : `${lobbyLabelText(lobbyLabel.label)}${NBSP}· ${title}`;
 }
 
 /**

@@ -409,7 +409,7 @@ describe('the longest lobby label (M22.7)', () => {
     );
     expect(legal(payload.embeds)).toBe(true);
     const [e1, , , e4] = payload.embeds;
-    expect(e1?.title).toBe(`${LABEL} · Teams are set · reroll 2 of 2`);
+    expect(e1?.title).toBe(`${LABEL}\u00a0· Teams are set · reroll 2 of 2`);
     expect(e1?.url).toBe(`${URL}?lobby=${LOBBY_ID}`);
     expect(e4?.url).toBe(`${URL}?lobby=${LOBBY_ID}#how-the-bot-decided`);
     expect(e1?.description?.split('\n')[0]).toContain(`(${URL}/mode?lobby=${LOBBY_ID})`);
@@ -437,7 +437,7 @@ describe('the longest lobby label (M22.7)', () => {
       lobbyLabel: label,
     });
     expect(legal(payload.embeds)).toBe(true);
-    expect(payload.embeds[0]?.title).toBe(`${LABEL} · ${GAME_ON_CUSTOM_TITLE}`);
+    expect(payload.embeds[0]?.title).toBe(`${LABEL}\u00a0· ${GAME_ON_CUSTOM_TITLE}`);
     expect(JSON.stringify(payload)).not.toContain(ELLIPSIS);
   });
 
@@ -464,7 +464,7 @@ describe('the longest lobby label (M22.7)', () => {
       }),
     );
     expect(legal(payload.embeds)).toBe(true);
-    expect(payload.embeds[0]?.title).toBe(`${LABEL} · Red wins · 31 min`);
+    expect(payload.embeds[0]?.title).toBe(`${LABEL}\u00a0· Red wins · 31 min`);
     expect(payload.embeds[0]?.title?.length).toBeLessThan(TITLE_LIMIT);
     expect(JSON.stringify(payload)).not.toContain(ELLIPSIS);
   });
