@@ -7,14 +7,15 @@ import {
   ruleModeOf,
   storedScoreParts,
 } from '@customs/db/schemas';
+import type { StoredSplit } from '@/components/receipt/types';
 import { SWITCH_SIDE_ENABLED } from '../commands/gate';
 import { readKickoffs } from '../games/kickoffs';
 import { matchesQueue } from '../games/queue';
 import {
+  gameReceiptOf,
   kickoffDisagrees,
-  type PlayedSplit,
-  playedOddsOf,
-  postedOdds,
+  type ReceiptSeat,
+  receiptBlueWinProb,
   splitRolesFor,
 } from '../games/receipt';
 import { type FoldPerformance, gatedGameAward, gateGame } from '../ingest/fold';
@@ -434,7 +435,7 @@ export async function loadResultSource(client: ServiceClient, gameId: string): P
   const { data: rows, error: playerError } = await client
     .from('game_players')
     .select(
-      'side, role, kills, deaths, assists, damage_to_champs, gold, cs, vision_score, damage_self_mitigated, damage_to_objectives, r_before, r_after, players!inner(puuid, display_name, game_name)',
+      'side, role, kills, deaths, assists, damage_to_champs, gold, cs, vision_score, damage_self_mitigated, damage_to_objectives, r_before, r_after, fold_p, players!inner(puuid, display_name, game_name)',
     )
     .eq('game_id', gameId);
   if (playerError) throw new Error(`discord: game_players lookup failed: ${playerError.message}`);
@@ -463,16 +464,18 @@ export async function loadResultSource(client: ServiceClient, gameId: string): P
     );
   }
   const rift = matchesQueue(typeof game.gameMode === 'string' ? game.gameMode : null, 'sr');
-  const odds = postedOdds(
-    playedOddsOf({
-      aram: matchesQueue(typeof game.gameMode === 'string' ? game.gameMode : null, 'aram'),
-      rated: game.rated,
-      seats,
-      chosen,
-      kickoff,
-    }),
+  const odds = resultOddsOf({
+    aram: matchesQueue(typeof game.gameMode === 'string' ? game.gameMode : null, 'aram'),
+    rated: game.rated,
+    seats,
     chosen,
-  );
+    kickoff,
+    folded: sided.map((row) => ({
+      side: (row.side === 100 ? 100 : 200) as SideValue,
+      rAfter: row.r_after,
+      foldP: row.fold_p,
+    })),
+  });
 
   const players: ResultSourcePlayer[] = sided.map((row) => ({
     puuid: row.players.puuid,
@@ -544,6 +547,69 @@ export function storedRule(
   return { mode, check: check.data };
 }
 
+/**
+ * The result post's odds (M21.14): {@link gameReceiptOf}'s number, exactly as the game page,
+ * `/games` and Tonight print it (`receiptBlueWinProb`). The bot's teams keep their split's odds
+ * (turned round on swapped sides); any other game Kustom did not pick -- teams changed after the
+ * roll, nobody rolled, no lobby at all -- gets its pre-game odds: the kickoff record's when its
+ * teams are the eog's, else the fold's stored `fold_p`, else core's `preGameOdds` over the
+ * `r_before`s. `null` (no odds line) for a not-rated or ARAM game the bot did not roll, and for a
+ * game where one of the ten has no rating going in. Pure.
+ */
+export function resultOddsOf(input: {
+  aram: boolean;
+  rated: boolean;
+  seats: readonly ReceiptSeat[];
+  chosen: PlayedSplitRoles | null;
+  kickoff: LobbyKickoff | null;
+  /** Each sided row's `r_after` and `fold_p`, for the fold's number (`foldBlueWinProb`). */
+  folded: readonly FoldedRow[];
+}): number | null {
+  const receipt = gameReceiptOf({
+    aram: input.aram,
+    rated: input.rated,
+    seats: input.seats,
+    // The post reads the chosen split alone: the rule only asks whether it is the played teams.
+    splits: input.chosen === null ? [] : [chosenAsStored(input.chosen)],
+    kickoff: input.kickoff,
+  });
+  return receiptBlueWinProb(receipt, foldBlueWinProb(input.folded));
+}
+
+/** One `game_players` row as {@link foldBlueWinProb} reads it. */
+export interface FoldedRow {
+  side: SideValue;
+  rAfter: number | null;
+  foldP: number | null;
+}
+
+/**
+ * The fold's stored blue probability, `lib/breakdown/read.ts`'s `ratingBlueWinProb` rule (the
+ * number the game page and Tonight fall back to, M14.59): five a side, every row folded with a
+ * `fold_p`, blue's first; else `null`.
+ */
+export function foldBlueWinProb(rows: readonly FoldedRow[]): number | null {
+  const blue = rows.filter((row) => row.side === 100);
+  const red = rows.filter((row) => row.side === 200);
+  if (blue.length !== 5 || red.length !== 5) return null;
+  if (!rows.every((row) => row.rAfter !== null && row.foldP !== null)) return null;
+  return blue[0]?.foldP ?? null;
+}
+
+/** The chosen split in `gameReceiptOf`'s shape: only the teams, the odds and the rank are read. */
+function chosenAsStored(chosen: PlayedSplitRoles): StoredSplit {
+  return {
+    rank: chosen.rank,
+    isChosen: true,
+    blue: chosen.blue,
+    red: chosen.red,
+    blueWinProb: chosen.blueWinProb,
+    gap: 0,
+    offRoleCount: 0,
+    explanation: '',
+  };
+}
+
 /** The chosen split of the lobby this game was played from (its teams, roles, odds and rank), or `null`. */
 async function loadChosenSplit(
   client: ServiceClient,
@@ -567,10 +633,13 @@ async function loadChosenSplit(
   };
 }
 
-type PlayedSplitRoles = PlayedSplit & {
+/** The chosen split as the result post reads it: its teams with their roles, its odds and its rank. */
+export interface PlayedSplitRoles {
   blue: { puuid: string; role: Role }[];
   red: { puuid: string; role: Role }[];
-};
+  blueWinProb: number;
+  rank: number;
+}
 
 /**
  * Which game this is, counted from the group's first: `Kustom · game 47` (M5.12, product
