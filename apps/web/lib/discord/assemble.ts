@@ -32,6 +32,7 @@ import type {
   GameOnPlayer,
   PlayerName,
   PostIdentity,
+  PostLobbyLabel,
   PromotedSplit,
   ResultAward,
   ResultEmbedInput,
@@ -100,6 +101,13 @@ export interface EmbedContext {
   switchSideEnabled?: boolean | undefined;
   /** The group's mode panel, `/g/<slug>/mode`, for the teams post's rule line (M15.6). */
   modeUrl?: string | undefined;
+  /** M22.7: which lobby, only while two or more tables are live at send time (`loadPostLobby`). */
+  lobbyLabel?: PostLobbyLabel | undefined;
+}
+
+/** The context's lobby label as an input key, or nothing: one-lobby inputs keep today's keys. */
+function labelOf(context: EmbedContext): { lobbyLabel?: PostLobbyLabel } {
+  return context.lobbyLabel === undefined ? {} : { lobbyLabel: context.lobbyLabel };
 }
 
 export type NameLookup = ReadonlyMap<string, PlayerName>;
@@ -161,6 +169,7 @@ export function buildTeamsInput(
     identity: context.identity,
     url: context.url,
     receiptUrl: context.receiptUrl,
+    ...labelOf(context),
     ...(source.mode === undefined || source.mode === null
       ? {}
       : { mode: source.mode, modeUrl: context.modeUrl }),
@@ -217,6 +226,7 @@ export function buildGameOnInput(
     red: side(source.kickoff.red),
     blueWinProb: rated ? source.kickoff.blueWinProb : null,
     url: context.url,
+    ...labelOf(context),
     ...(source.mode === null ? {} : { mode: source.mode, modeUrl: context.modeUrl }),
   };
 }
@@ -305,6 +315,7 @@ export function buildResultInput(source: ResultSource, context: EmbedContext): R
     identity: context.identity,
     url: context.url,
     badgeUrl: context.badgeUrl,
+    ...labelOf(context),
   };
 }
 
@@ -337,6 +348,7 @@ function buildNotRatedInput(source: ResultSource, context: EmbedContext): Result
     identity: context.identity,
     url: context.url,
     badgeUrl: context.badgeUrl,
+    ...labelOf(context),
   };
 }
 

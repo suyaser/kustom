@@ -280,6 +280,9 @@ if (stack === null) {
     });
   });
 
+  /** The lobby's label while the other lobby is live too (M22.7): its first reporter's name. */
+  const LABEL = "Player0's lobby";
+
   describe('two presses, and no third', () => {
     it('promotes split 2 and posts it as reroll 1 of 2, description verbatim', async () => {
       const target = splitOfRank(2);
@@ -300,7 +303,9 @@ if (stack === null) {
       expect(await chosenRows(lobbyId)).toEqual([{ rank: 2 }]);
 
       expect(posts).toHaveLength(1);
-      expect(embedOf(0)?.title).toBe('Teams are set · reroll 1 of 2');
+      // Two lobbies are balanced in this group (the second is the "another lobby" of the 404
+      // case), so the post names its lobby (M22.7): Player0's Kustom reported it first.
+      expect(embedOf(0)?.title).toBe(`${LABEL}\u00a0· Teams are set · reroll 1 of 2`);
       // The receipt (M14.10), saying reroll once (the chip, M14.37), ending in the promoted split's stored
       // sentence, never recomposed beyond M14.41's one roles clause.
       const lines = receiptLinesOf(0);
@@ -330,7 +335,7 @@ if (stack === null) {
       await expect(response.json()).resolves.toMatchObject({ rank: 3, promoted: true, post: 'posted' });
       expect(await chosenRows(lobbyId)).toEqual([{ rank: 3 }]);
       expect(posts).toHaveLength(1);
-      expect(embedOf(0)?.title).toBe('Teams are set · reroll 2 of 2');
+      expect(embedOf(0)?.title).toBe(`${LABEL}\u00a0· Teams are set · reroll 2 of 2`);
       const lines = receiptLinesOf(0);
       expect(lines[0]?.startsWith('**Blue ')).toBe(true);
       expect(lines[3]).toContain('Reroll 2 of 2');
@@ -357,7 +362,7 @@ if (stack === null) {
       expect(response.status).toBe(200);
       await expect(response.json()).resolves.toMatchObject({ rank: 1, promoted: true });
       expect(await chosenRows(lobbyId)).toEqual([{ rank: 1 }]);
-      expect(embedOf(0)?.title).toBe('Teams are set');
+      expect(embedOf(0)?.title).toBe(`${LABEL}\u00a0· Teams are set`);
       const lines = receiptLinesOf(0);
       expect(lines[0]?.startsWith('**Blue ')).toBe(true);
       expect(lines[3]).toContain("Bot's pick #1 of 3");
