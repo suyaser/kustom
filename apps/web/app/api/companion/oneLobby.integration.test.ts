@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { Database } from '@customs/db';
 import { createClient } from '@supabase/supabase-js';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { mintCompanionToken } from '@/lib/companionAuth';
 import { ensurePlayers } from '@/lib/ingest/players';
 import { eogBody, testGameId } from '@/lib/testing/fixtures';
@@ -13,6 +13,22 @@ import {
 } from '@/lib/testing/groups';
 import { resolveLocalStack } from '@/lib/testing/localStack';
 import { rollForTest } from '@/lib/testing/roll';
+
+/** M22.4 review: one lobby post whose roster write throws, after the token moved. */
+const failing = vi.hoisted(() => ({ next: false }));
+vi.mock('@/lib/ingest/players', async (actual) => {
+  const real = await actual<typeof import('@/lib/ingest/players')>();
+  return {
+    ...real,
+    ensurePlayers: (async (...args: Parameters<typeof real.ensurePlayers>) => {
+      if (failing.next) {
+        failing.next = false;
+        throw new Error('test: the roster write failed');
+      }
+      return real.ensurePlayers(...args);
+    }) as typeof real.ensurePlayers,
+  };
+});
 
 /**
  * M22.1 against the local stack: a host's Kustom is in one lobby at a time (decision row M22 D6).
@@ -261,7 +277,18 @@ if (stack === null) {
     const rolled = await post(party('rolled'), sided(anaTen), tokens.ana);
     await rollForTest(db, rolled.lobbyId);
     expect(await status(rolled.lobbyId)).toBe('balanced');
-    expect(await cardRow()).toMatchObject({ pending_rule: null, pending_region_blue: null });
+    // M22.4: Bo's finished B is still in play (his Kustom is in its walk back), so Ana's new custom
+    // is a second lobby with its own card, a copy of the group's (`lobby_modes`). Roll moves the
+    // copy's rule onto the lock; the group's card keeps its own.
+    const { data: fork } = await db
+      .from('lobby_modes')
+      .select('pending_rule, pending_region_blue')
+      .eq('group_id', groups.g)
+      .eq('lcu_party_id', party('rolled'))
+      .single();
+    expect(fork).toEqual({ pending_rule: null, pending_region_blue: null });
+    const { data: taken } = await db.from('lobbies').select('lock_rule').eq('id', rolled.lobbyId).single();
+    expect(taken).toEqual({ lock_rule: 'region' });
 
     const elsewhere = await post(party('elsewhere'), sided([ANA]), tokens.ana);
     expect(await status(rolled.lobbyId)).toBe('abandoned');
@@ -308,6 +335,36 @@ if (stack === null) {
     await post(party('next'), sided([ANA]), tokens.ana);
     expect(await status(shared.lobbyId)).toBe('abandoned');
     expect(await status(next.lobbyId)).toBe('open');
+  });
+
+  it("a post that throws after Ana's token moved still lets go the co-host's lobby she left (retry)", async () => {
+    // Bo reports Y first; Ana joins it, so her token's current party is Y. Bo's Kustom then goes quiet.
+    const y = await post(party('cohost-y'), sided([BO, ANA]), tokens.bo);
+    await post(party('cohost-y'), sided([BO, ANA]), tokens.ana);
+    await seen('bo', new Date(Date.now() - 11 * 60_000));
+    expect(await status(y.lobbyId)).toBe('open');
+
+    // Ana's post for X throws inside the roster write, after her token moved to X.
+    failing.next = true;
+    const xBody = {
+      partyId: party('cohost-x'),
+      lobbyName: 'one lobby retry',
+      members: [
+        { puuid: ANA, gameName: 'P10', tagLine: 'EUW', summonerId: 9_010, side: 100, isSpectator: false },
+      ],
+    };
+    const first = await postLobby(jsonRequest('/api/companion/lobby', xBody, tokens.ana)).then(
+      (response) => response.status,
+      () => 'threw',
+    );
+    expect(first).not.toBe(200);
+    expect(failing.next).toBe(false);
+
+    // The companion retries: the token already reads X, and Y is still let go.
+    const retry = await post(party('cohost-x'), sided([ANA]), tokens.ana);
+    expect(await status(y.lobbyId)).toBe('abandoned');
+    expect(await status(retry.lobbyId)).toBe('open');
+    await seen('bo', new Date());
   });
 
   it("(d) Ana's post about another group's party still lets her own lobby go", async () => {

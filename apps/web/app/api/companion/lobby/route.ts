@@ -72,6 +72,8 @@ export const POST = withCompanionAuth(companionLobbyPayloadSchema, async (payloa
       groupId: identity.groupId,
       now,
       live,
+      // M22.3: the token's current party (which Kustom is in which lobby) comes from the token too.
+      tokenId: identity.tokenId,
     });
 
     return jsonOk(companionLobbyResponseSchema, {

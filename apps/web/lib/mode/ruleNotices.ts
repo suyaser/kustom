@@ -128,6 +128,8 @@ export const THIS_GAME_STAYS =
   "The game has started, so this game's mode stays. Changes now are for the next game.";
 /** M20.18: a `this` mode, Spin or Rated action with no rolled game (409): there is no lock to change. */
 export const NO_THIS_GAME = 'No teams are rolled yet, so changes are for the next game.';
+/** M22.4: a card action naming no lobby (or one that is not live) while two or more are live (409). */
+export const PICK_A_LOBBY_FIRST = 'Pick a lobby first.';
 
 /** A standing pick: `Rule cleared. Back to Fearless.` when it cleared a rule, else M14's line. */
 export function standingNotice(standing: StandingModeId, clearedRule: boolean): string {

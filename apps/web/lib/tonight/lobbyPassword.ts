@@ -46,9 +46,38 @@ export async function withLobbyPassword(
   read: (lobbyId: string, groupId: string) => Promise<string | null>,
 ): Promise<TonightSnapshot> {
   if (snapshot.lobby === null || !maySeeLobbyPassword(viewer)) return snapshot;
+  const lobby = snapshot.lobby;
+  const tables = snapshot.lobbies ?? [];
   try {
-    const lobbyPassword = await read(snapshot.lobby.id, groupId);
-    return { ...snapshot, lobby: { ...snapshot.lobby, lobbyPassword } };
+    if (tables.length < 2) {
+      // One lobby: one read, as before M22.5; a one-table snapshot's table keeps sharing the object.
+      const withPassword = { ...lobby, lobbyPassword: await read(lobby.id, groupId) };
+      return {
+        ...snapshot,
+        lobby: withPassword,
+        ...(tables.length === 0
+          ? {}
+          : {
+              lobbies: tables.map((table) =>
+                table.lobby === lobby ? { ...table, lobby: withPassword } : table,
+              ),
+            }),
+      };
+    }
+    // Several live tables (M22.5): each one's own password, read at once, so a switch needs no request.
+    const passwords = new Map(
+      await Promise.all(tables.map(async (table) => [table.id, await read(table.id, groupId)] as const)),
+    );
+    const lobbies = tables.map((table) => ({
+      ...table,
+      lobby: { ...table.lobby, lobbyPassword: passwords.get(table.id) ?? null },
+    }));
+    const selected = lobbies.find((table) => table.id === lobby.id)?.lobby;
+    return {
+      ...snapshot,
+      lobby: selected ?? { ...lobby, lobbyPassword: await read(lobby.id, groupId) },
+      lobbies,
+    };
   } catch (error) {
     console.error('tonight: reading the lobby password failed; showing the line without it', error);
     return snapshot;

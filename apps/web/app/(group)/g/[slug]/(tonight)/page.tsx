@@ -27,8 +27,11 @@ import { loadLiveVersionOrNone } from '@/lib/tonight/liveVersion';
 import { loadTonight } from '@/lib/tonight/load';
 import { loadLobbyPassword, withLobbyPassword } from '@/lib/tonight/lobbyPassword';
 import { nightTimeZone, tonightStart } from '@/lib/tonight/night';
+import { withSelection } from '@/lib/tonight/selection';
 import { loadSitOutPreviewOrNone, loadSitOutRuleOrNone } from '@/lib/tonight/sitOutPreview';
 import { hasNamelessRow, tonightHeader, tonightState } from '@/lib/tonight/state';
+import { viewerPuuid } from '@/lib/tonight/viewer';
+import { loadTableWatchersOrNone } from '@/lib/tonight/watchers';
 import { loadYourNightOrNone } from '@/lib/tonight/yourNight';
 import { readPitchCookie } from '@/lib/versus/pitchCookie';
 import { currentViewerState } from '@/lib/viewer';
@@ -56,8 +59,15 @@ export const dynamic = 'force-dynamic';
 
 interface TonightPageProps {
   params: Promise<{ slug: string }>;
-  /** A no-JS mode or reset post comes back with `?notice=` / `?error=` (M14.30). */
-  searchParams?: Promise<{ notice?: string | string[]; error?: string | string[] }>;
+  /**
+   * A no-JS mode or reset post comes back with `?notice=` / `?error=` (M14.30); `?lobby=` picks the
+   * table to draw (M22.5).
+   */
+  searchParams?: Promise<{
+    notice?: string | string[];
+    error?: string | string[];
+    lobby?: string | string[];
+  }>;
 }
 
 function one(value: string | string[] | undefined): string | null {
@@ -101,7 +111,16 @@ export default async function TonightPage({ params, searchParams }: TonightPageP
   // M19.10: the group's live version, read beside the night and never newer than it (`liveVersion.ts`).
   const renderStart = Date.now();
   const [anonSnapshot, viewer, top, mystery, admins, hostPresence, liveVersion] = await Promise.all([
-    loadTonight(client, { nightStart: tonightStart(), timeZone, groupId: group.id }),
+    // M22.5: `?lobby=` picks the table when it names a live one; the viewer's table comes after.
+    // Who watches each table is read only with two or more live, beside the night's second round.
+    loadTonight(client, {
+      nightStart: tonightStart(),
+      timeZone,
+      groupId: group.id,
+      now,
+      lobbyId: one(query.lobby),
+      readWatchers: () => loadTableWatchersOrNone(getServiceClient(), group.id, now),
+    }),
     viewerRead,
     loadTopBoardCachedOrNone({
       groupId: group.id,
@@ -118,10 +137,15 @@ export default async function TonightPage({ params, searchParams }: TonightPageP
   ]);
   // M14.69: the lobby list and the team cards print the same same-name labels as the board,
   // computed now from the (cached) roster and tonight's people; only a newcomer costs a read.
-  const labels = await loadRosterLabels(client, group.id, lobbyPeople(anonSnapshot), {
+  // M22.5: the table drawn is `?lobby=`'s, else the viewer's, else the most recently changed.
+  const selected = withSelection(anonSnapshot, {
+    requested: one(query.lobby),
+    viewerPuuid: viewerPuuid(viewer),
+  });
+  const labels = await loadRosterLabels(client, group.id, lobbyPeople(selected), {
     inputs: rosterInputs,
   });
-  const labelled = labelSnapshot(withHostPresence(anonSnapshot, hostPresence), labels);
+  const labelled = labelSnapshot(withHostPresence(selected, hostPresence), labels);
   const state = tonightState(labelled);
   const header = tonightHeader(state, admins);
 

@@ -12,6 +12,7 @@ import {
 import type { Json, RoleValue, SideValue } from '@customs/db';
 import { ruleColumnsOf, storedRuleCheck } from '@customs/db/schemas';
 import type { ServiceClient } from '../supabase';
+import type { ModeTable } from './table';
 
 /**
  * What a recorded game is stamped with, and what it writes to the card (M20.7; core's
@@ -54,6 +55,12 @@ export interface ModeRecord {
   rowUpdatedAt: string | null;
   /** The lock's `locked_at` (null with no lock). */
   lockedAt: string | null;
+  /**
+   * The card the stamp read (M22.4): absent or not forked is `group_modes`, as before M22; a forked
+   * table's write (hand-back, using up) goes to its `lobby_modes` row, also when it was folded or
+   * deleted since (then nothing is written: the card it came from is gone).
+   */
+  modeTable?: ModeTable;
 }
 
 export interface StampInput extends ModeRecord {
@@ -107,15 +114,19 @@ export function stampColumns(input: StampInput): GameModeColumns {
 
 const nullable = <T>(value: T | null): T => value as T;
 
-/** Teams down's twin for a remake or an ARAM: the lock back into the row's empty fields, one statement. */
+/**
+ * Teams down's twin for a remake or an ARAM: the lock back into the row's empty fields, one
+ * statement. A forked table's (M22.4) goes back to its own row.
+ */
 export async function handBackLock(
   client: ServiceClient,
   groupId: string,
   lock: ModeLock,
   lockedAt: string | null,
+  table?: ModeTable,
 ): Promise<boolean> {
   const rule = ruleColumnsOf(lock.mode);
-  const { data, error } = await client.rpc('mode_hand_back', {
+  const args = {
     p_group_id: groupId,
     p_rule: nullable(rule.rule),
     p_class_tag: nullable(rule.classTag),
@@ -123,7 +134,11 @@ export async function handBackLock(
     p_region_red: nullable(rule.regionRed),
     p_rated: nullable(lock.rated),
     p_locked_at: nullable(lockedAt),
-  });
+  };
+  const { data, error } =
+    table?.forked && table.partyId !== null
+      ? await client.rpc('mode_hand_back_lobby', { ...args, p_party_id: table.partyId })
+      : await client.rpc('mode_hand_back', args);
   if (error) throw new Error(`mode: hand-back failed: ${error.message}`);
   return data === true;
 }
@@ -141,24 +156,28 @@ export async function applyModeRecord(
   if (Object.keys(patch).length === 0) return false;
   // A remake or an ARAM from a locked lobby: core's patch is handBack's, re-decided in the
   // database against the row as it is now, so a choice made since the read always wins.
-  if (record.lock !== null) return handBackLock(client, groupId, record.lock, record.lockedAt);
+  if (record.lock !== null)
+    return handBackLock(client, groupId, record.lock, record.lockedAt, record.modeTable);
 
   // A live Rift game with no lock used the pending state up: empty it only if it is still what the
   // stamp read (an admin who chose since keeps the choice). Nothing to use up writes nothing.
   if (record.row.pending === null && record.row.rated === null) return false;
   const read = record.row.pending === null ? null : ruleColumnsOf(record.row.pending);
-  let update = client
-    .from('group_modes')
-    .update({
-      pending_rule: null,
-      pending_class_tag: null,
-      pending_region_blue: null,
-      pending_region_red: null,
-      rated_override: null,
-      pending_set_by: null,
-    })
-    .eq('group_id', groupId)
-    .eq('mode', record.row.standing);
+  const emptied = {
+    pending_rule: null,
+    pending_class_tag: null,
+    pending_region_blue: null,
+    pending_region_red: null,
+    rated_override: null,
+    pending_set_by: null,
+  };
+  const fork = record.modeTable?.forked === true ? record.modeTable.partyId : null;
+  // A forked table's pending state is on its own row (M22.4); the standing mode is the group's, so
+  // its compare is only on the one-lobby path's row.
+  let update =
+    fork === null
+      ? client.from('group_modes').update(emptied).eq('group_id', groupId).eq('mode', record.row.standing)
+      : client.from('lobby_modes').update(emptied).eq('group_id', groupId).eq('lcu_party_id', fork);
   update = read?.rule == null ? update.is('pending_rule', null) : update.eq('pending_rule', read.rule);
   update =
     read?.classTag == null

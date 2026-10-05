@@ -9,7 +9,14 @@ import type { LobbyView, PlayerName, TonightSnapshot } from './types';
  */
 export function labelSnapshot(snapshot: TonightSnapshot, labels: NameLabels): TonightSnapshot {
   if (labels.size === 0 || snapshot.lobby === null) return snapshot;
-  return { ...snapshot, lobby: labelLobby(snapshot.lobby, labels) };
+  const lobby = snapshot.lobby;
+  const labelled = labelLobby(lobby, labels);
+  // M22.5: every live table is labelled; the selected one stays the same object as `lobby`.
+  const lobbies = snapshot.lobbies?.map((table) => ({
+    ...table,
+    lobby: table.lobby === lobby ? labelled : labelLobby(table.lobby, labels),
+  }));
+  return { ...snapshot, lobby: labelled, ...(lobbies === undefined ? {} : { lobbies }) };
 }
 
 function label<T extends { puuid: string; name: PlayerName }>(row: T, labels: NameLabels): T {
@@ -50,7 +57,20 @@ function labelLobby(lobby: LobbyView, labels: NameLabels): LobbyView {
   };
 }
 
-/** Everybody tonight's lobby names, for `loadRosterLabels`' `extra` (a first-timer is not on the roster yet). */
+/**
+ * Everybody tonight's lobby names, for `loadRosterLabels`' `extra` (a first-timer is not on the
+ * roster yet): the drawn lobby's members, then every other live table's (M22.5), each puuid once.
+ */
 export function lobbyPeople(snapshot: TonightSnapshot): { puuid: string; name: PlayerName }[] {
-  return (snapshot.lobby?.members ?? []).map((member) => ({ puuid: member.puuid, name: member.name }));
+  const seen = new Set<string>();
+  const people: { puuid: string; name: PlayerName }[] = [];
+  const lobbies = [snapshot.lobby, ...(snapshot.lobbies ?? []).map((table) => table.lobby)];
+  for (const lobby of lobbies) {
+    for (const member of lobby?.members ?? []) {
+      if (seen.has(member.puuid)) continue;
+      seen.add(member.puuid);
+      people.push({ puuid: member.puuid, name: member.name });
+    }
+  }
+  return people;
 }

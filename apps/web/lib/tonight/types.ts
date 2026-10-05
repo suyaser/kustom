@@ -266,13 +266,67 @@ export interface LobbyView {
   kickoff?: KickoffView | null | undefined;
 }
 
+/**
+ * One live lobby of tonight (M22.5): a **table** (M22 D4, `lib/liveTables.ts`), the night's rows
+ * of one `lcu_party_id`, drawn from its newest row. Friends say "lobby"; the code says table.
+ */
+export interface TableView {
+  /** The table's newest row: `lobby.id`. The switcher's key and the value `?lobby=` carries. */
+  id: string;
+  partyId: string;
+  /**
+   * Every row of this table tonight, oldest first: a `?lobby=` naming an earlier cycle (a teams
+   * post opened after the next game started) still lands on the table (05-design.md 14.4).
+   */
+  rowIds: string[];
+  /** ISO 8601: the table's first row tonight. The switcher's order, oldest first, fixed for the night. */
+  openedAt: string;
+  /** ISO 8601: the newest row's `updated_at` (or `created_at`, if later): "changed most recently". */
+  changedAt: string;
+  /**
+   * The label's input (05-design.md 14.1, the M22.2 rulings row): the table's first reporter
+   * tonight, fixed for the night. Null when no row has one or the player cannot be read.
+   */
+  host: { puuid: string; name: PlayerName } | null;
+  /**
+   * Whether some Kustom is in this table (M22.3's watchers, `No Kustom` in 14.8). `null` when the
+   * page did not read it: one live table (nothing in 14 exists then), or a failed token read.
+   */
+  watched: boolean | null;
+  /** The table drawn exactly as a one-lobby Tonight draws its lobby. */
+  lobby: LobbyView;
+  /**
+   * The tape tile of the table's newest row when it is `finished` (inside the walk back), or null:
+   * the tile the tape shows while **another** table is selected (14.6).
+   */
+  tile: TapeEntry | null;
+}
+
 export interface TonightSnapshot {
   /**
-   * The newest non-`abandoned` lobby of tonight, or `null` — which is the idle page. Tonight
-   * is 06:00 to 06:00 in `CUSTOMS_NIGHT_TZ`; the boundary is computed on the server by
-   * `lib/night.ts` and travels in `nightStart` so the browser never re-derives it.
+   * The lobby the page draws, or `null` — which is the idle page. Tonight is 06:00 to 06:00 in
+   * `CUSTOMS_NIGHT_TZ`; the boundary is computed on the server by `lib/night.ts` and travels in
+   * `nightStart` so the browser never re-derives it.
+   *
+   * M22.5: the **selected** table's lobby ({@link selectedLobbyId}); with no live table, the
+   * newest non-`abandoned` lobby of tonight, as before M22 (a result an hour old stays up).
    */
   lobby: LobbyView | null;
+  /**
+   * Every live table (M22.5), oldest opened first; one entry on a one-lobby night, empty with none.
+   * Absent in fixtures built before M22, and read as none.
+   */
+  lobbies?: TableView[] | undefined;
+  /**
+   * The selected table's id (`lib/tonight/tables.ts`: `?lobby=`, else the viewer's table, else the
+   * most recently changed), or null when no table is live. Absent in older fixtures.
+   */
+  selectedLobbyId?: string | null | undefined;
+  /**
+   * Whether two tables were live at the same time at any point tonight (14.6: the tape names each
+   * tile's lobby for the rest of such a night). Absent in older fixtures: false.
+   */
+  severalLobbiesTonight?: boolean | undefined;
   /** ISO 8601. The start of the night this snapshot was taken for. */
   nightStart: string;
   /**
@@ -315,6 +369,7 @@ export interface TonightSnapshot {
    * Tonight's earlier games, **oldest first** (M11.2): every `finished` or `dropped` lobby of
    * the night except the one the primary block is drawing. Not a fourth state — the primary
    * block is still {@link TonightState}. Empty on a night with nothing behind the current block.
+   * Every table's games (M22.5); another live table's current result is a tile here.
    */
   tape: TapeEntry[];
   /**
