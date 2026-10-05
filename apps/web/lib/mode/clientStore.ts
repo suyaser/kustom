@@ -339,9 +339,14 @@ export function useModeSlice(
  */
 export function useThisGameLock(groupId: string, server: LockSlice | null, withTap = true): ModeLock | null {
   const store = useSyncExternalStore(subscribe, getEntries, getServerEntries);
+  noteServerLock(groupId, server);
+  return mergeLock(server, groupId, store, withTap);
+}
+
+/** The render's lock for `groupId` (null: none), what a later answer is held against. Idempotent. */
+export function noteServerLock(groupId: string, server: LockSlice | null): void {
   if (server === null) lastServerLock.delete(groupId);
   else lastServerLock.set(groupId, server);
-  return mergeLock(server, groupId, store, withTap);
 }
 
 /** The lock of the newest render per group (written by renders, idempotent). */
