@@ -14032,6 +14032,7 @@ lobby only on a night that had two. With one live table the switcher is not rend
   one-lobby page with the survivor's mode on the card. Gaps filed as M22.11 onward.
 - [x] **M22.11** Remove `Start a lobby`. *(owner: `web-engineer` for Tonight and admin, `platform-engineer` for the route, command queue and status read, `companion-engineer` for the companion's create-lobby command handling; owner decision 2026-10-05)* Lobbies come from the customs hosts open. Remove the Tonight control and its pending frame, the `/api/me/lobbies/start` route and status read (M19.16, M19.17), the start command in the queue and its sweep, and every copy line; keep the command table if other commands still use it (switch side). The companion stops acting on a start command (keep reading unknown commands as a logged drop). Acceptance: no `Start a lobby` string or route left (grep test), every suite green, a companion without the change still runs (it simply never receives a start command).
   *Landed 2026-10-05 (7864d1b9, reviewer pass): web-only removal; the companion contract, goldens and Rust handlers stay until a companion cleanup task. Grep test lib/noLobbyPress.test.ts.*
+  *Companion cleanup landed 2026-10-05 (branch companion-drop-create-lobby 370e673b, reviewer pass): the create_lobby/invite handlers, contract entries and goldens are gone; ships to players in Kustom 1.0.2. docs/01-architecture.md still describes the removed flow in a few places (follow-up).*
 
 ```
 M22.1 (bug, now) ---------------------------------------------------------------\
