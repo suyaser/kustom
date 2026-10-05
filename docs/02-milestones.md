@@ -13516,7 +13516,7 @@ receipt-based surfaces recover and the seven readers above stay wrong for good.
   > 1 `no_visible_cause` (2026-10-02, 13 members): five sided members never played and five spectators or unsided members did; last member row 61 min before start. That is a game matched to a stale lobby (the same lobby kept across games), not stale sides.
   > played kinds: rolled 5, **custom 90**, unrolled 26.
   **Verdict: pass for M21.4 on the frozen lobby.** Notes for M21.4: (a) "custom" here is exact side equality, so a split played on swapped sides counts as custom; M21.4's `teamsMatchSplit` must decide whether same teams on swapped sides is `rolled` (recommended: yes, and recompute nothing but the side line); (b) smaller games (fewer than ten) match too, so kickoff teams should not require ten; (c) the stale-lobby match is a separate ingest bug, filed as M21.11.
-- [ ] **M21.2** Verify on a real client: sides at champ select and the gameflow session's teams. *(owner: the
+- [x] **M21.2** Verify on a real client: sides at champ select and the gameflow session's teams. *(owner: the
   user on a real night, the lead reads the capture; no code)* On the machine that hosts (Windows, or the Mac, which
   has League and the repo), run `pnpm --filter @customs/lcu record-ws` from before Roll until the game has loaded,
   on a night with at least two humans on each side where at least one person moves side by hand after Roll. Then
@@ -13532,6 +13532,7 @@ receipt-based surfaces recover and the seven readers above stay wrong for good.
   shape is verified (16.17) but every capture so far had one human (`teamOne` 1, `teamTwo` 0). M21.3 may not merge
   until (c) is verified. M21.4 does not wait on this task when M21.1 passes.
 
+  *Skipped 2026-10-05 by the owner: the M21.1 audit (95 of 96) shows the frozen lobby sides are reliable, so no capture is needed. M21.3 stays unneeded.*
 - [ ] **M21.3** *(conditional: only if M21.1 does not pass, or the owner asks for it; OPEN item 2)* The
   `in_progress` post carries the teams. *(owners: `companion-engineer` for the Rust engine, `platform-engineer` for
   the schema; after M21.2 (c) is verified)* `InProgressPayload` gains `teams: { puuid, side }[]` built from the
