@@ -4,10 +4,10 @@ import { type ClassTag, modeRatedDefault, type RuleOption, ruleKey } from '@cust
 import {
   GROUP_MODES,
   type GroupMode,
+  legacyModeAnswerSchema,
   type ModeChoice,
   type NextGame,
   ruleOptionOf,
-  setGroupModeResponseSchema,
 } from '@customs/db/schemas';
 import { type FormEvent, useEffect, useId, useRef, useState } from 'react';
 import {
@@ -70,7 +70,8 @@ import { beginTonightPress, requestTonightRefresh } from '@/lib/tonight/live';
 import { cn } from '@/lib/utils';
 
 const MODE_ACTION = '/api/admin/mode';
-const SPIN_ACTION = '/api/admin/mode/spin';
+// M20.7: Spin posts to the one mode route with `spin=true` (`/api/admin/mode/spin` is gone).
+const SPIN_ACTION = MODE_ACTION;
 const RESET_ACTION = '/api/admin/fearless/reset';
 
 const CLASS_CHOICES: readonly ClassTag[] = ['Tank', 'Marksman', 'Mage', 'Assassin', 'Support'];
@@ -213,7 +214,8 @@ export function ModeControls({
         done();
         return { ok: false, status: response.status };
       }
-      const parsed = setGroupModeResponseSchema.safeParse(await response.json().catch(() => null));
+      // M20.7: the answer is `{ state, notice }` plus the fields this client reads; M20.8 moves it to `state`.
+      const parsed = legacyModeAnswerSchema.safeParse(await response.json().catch(() => null));
       const spun = parsed.success && parsed.data.spun !== undefined ? ruleOptionOf(parsed.data.spun) : null;
       const next = parsed.success ? (parsed.data.next ?? null) : null;
       // The answer first, then the tap goes: the card never flashes back to the old state.
@@ -260,7 +262,7 @@ export function ModeControls({
   async function spin(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     if (controlsOf(groupId).spinUntil !== null || !begin('spin')) return;
-    const result = await post(SPIN_ACTION, {});
+    const result = await post(SPIN_ACTION, { spin: true });
     if (!result.ok) {
       dispatch({ type: 'refused', failed: result.status === 409 ? NOTHING_TO_SPIN : MODE_CHANGE_FAILED });
       return;
@@ -373,6 +375,7 @@ export function ModeControls({
         hidden
       >
         <input type="hidden" name="groupId" value={groupId} />
+        <input type="hidden" name="spin" value="true" />
         <input type="hidden" name="redirectTo" value={redirectTo} />
       </form>
 

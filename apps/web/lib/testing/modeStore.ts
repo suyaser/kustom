@@ -1,32 +1,39 @@
-import type { ModeState } from '@customs/core';
-import { type ModeStore, type ModeWriter, missingState, type StoredModeState } from '../mode/state';
+import type { ModeRow, RowPatch } from '@customs/core';
+import type { ModeStore, ModeWriter, StoredModeRow } from '../mode/state';
+import { missingRow } from '../mode/state';
 
 /**
- * Tests only: an in-memory {@link ModeStore} with the same compare-and-set rule as the Supabase one
- * (a write lands only on the version it read, or on a missing row when the row was missing).
- * `interleave` runs once before the next write, so a test can land a second admin's write between
- * a read and a write.
+ * Tests only: an in-memory {@link ModeStore} with the Supabase one's rule (M20.7): a write applies
+ * exactly the patch's fields to the row as it is now, whatever was read before (last write wins).
+ * `beforeNextWrite` runs once before the next write, so a test can land a second admin's write
+ * between a read and a write. `updatedAt` moves on every write.
  */
-export function memoryModeStore(initial: ModeState | null) {
-  let row: ModeState | null = initial;
-  const writes: { next: ModeState; writer: ModeWriter }[] = [];
+export function memoryModeStore(initial: ModeRow | null) {
+  let row: ModeRow | null = initial;
+  let tick = 0;
+  const writes: { patch: RowPatch; writer: ModeWriter }[] = [];
   let interleave: (() => void) | null = null;
+  const stamp = () => new Date(Date.UTC(2026, 9, 5, 18, 0, 0, tick)).toISOString();
+
+  const stored = (): StoredModeRow =>
+    row === null
+      ? { row: missingRow(), exists: false, updatedAt: null }
+      : { row, exists: true, updatedAt: stamp() };
 
   const store: ModeStore = {
-    async read(): Promise<StoredModeState> {
-      return row === null ? { state: missingState(), exists: false } : { state: row, exists: true };
+    async read() {
+      return stored();
     },
-    async write(_groupId, expected, next, writer) {
+    async write(_groupId, patch, writer) {
       if (interleave !== null) {
         const run = interleave;
         interleave = null;
         run();
       }
-      const matches = expected.exists ? row !== null && row.version === expected.state.version : row === null;
-      if (!matches) return false;
-      row = next;
-      writes.push({ next, writer });
-      return true;
+      row = { ...(row ?? missingRow()), ...patch };
+      tick += 1;
+      writes.push({ patch, writer });
+      return stored();
     },
   };
 
@@ -34,8 +41,9 @@ export function memoryModeStore(initial: ModeState | null) {
     store,
     writes,
     row: () => row,
-    set: (state: ModeState) => {
-      row = state;
+    set: (next: ModeRow) => {
+      row = next;
+      tick += 1;
     },
     beforeNextWrite: (run: () => void) => {
       interleave = run;

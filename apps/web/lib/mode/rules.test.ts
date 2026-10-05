@@ -1,36 +1,49 @@
-import type { ChampionFacts, ChampionTable, ModeState, Rng } from '@customs/core';
-import { describe, expect, it, vi } from 'vitest';
-import { memoryModeStore } from '../testing/modeStore';
+import type { ChampionFacts, ChampionTable, ModeLock, ModeRow } from '@customs/core';
+import { describe, expect, it } from 'vitest';
 import { championTable, regionIds } from './champions';
-import { type LockInputs, lockFor, lockFromRow, rowFromLock, type StoredLock } from './lock';
-import { clearAfterRecord, recordedGame, stampColumns } from './record';
+import { lockFromRow, modeLockOf, storedLockOf } from './lock';
+import { type ModeRecord, recordResultOf, rowTouchedAfterLock, stampColumns } from './record';
 import { serverRng } from './rng';
 import {
   CLASS_PLURAL,
+  nextPairNotice,
   ratedNotice,
   ruleChosenNotice,
   ruleLabel,
+  shortPairRedrawnNotice,
   spinNotice,
   standingNotice,
+  thisPairNotice,
 } from './ruleNotices';
-import { spinFor } from './spin';
-import { missingState, rowFromState, stateFromRow } from './state';
+import { missingRow, missingState, rowFromColumns, stateFromRow, storedFromColumns } from './state';
 
 /**
- * M15.3's server helpers around core's mode model: the card row, the lock at Roll, the stamp at
- * record, the compare-and-clear, Spin's inputs and the notices. Core's own rules are tested in
- * core; these check the mapping and the wiring.
+ * The server's mapping around core's one-row mode (M20.7): the card row's columns, the lobby's lock
+ * columns, the stamp at record (core's `recordGame`), what a record writes, and the notices. Core's
+ * own rules (`transition`, `take`, `handBack`, `recordGame`) are tested in core; these check the
+ * mapping and the wiring. The database half (Roll's move, the hand-backs, the races) is
+ * `app/api/admin/mode.integration.test.ts`.
  */
 
-const state = (over: Partial<ModeState> = {}): ModeState => ({
+const row = (over: Partial<ModeRow> = {}): ModeRow => ({
   standing: 'normal',
   pending: null,
-  ratedOverride: null,
-  version: 7,
+  rated: null,
   ...over,
 });
 
-/** 12 tanks in Ionia (1..12), 12 mages in Noxus (21..32), 12 marksmen in Demacia (41..52), 3 others. */
+const columns = (over: Partial<Parameters<typeof rowFromColumns>[0]> = {}) => ({
+  mode: 'normal',
+  pending_rule: null,
+  pending_class_tag: null,
+  pending_region_blue: null,
+  pending_region_red: null,
+  rated_override: null,
+  updated_at: '2026-10-05T18:00:00.000Z',
+  ...over,
+});
+
+/** 12 tanks in Ionia (1..12), 12 mages in Noxus (21..32), 12 marksmen in Demacia (41..52), 2 others. */
 function table(): ChampionTable {
   const rows = new Map<number, ChampionFacts>();
   for (let i = 0; i < 12; i += 1) {
@@ -43,156 +56,113 @@ function table(): ChampionTable {
   return rows;
 }
 
-/** An RNG that hands back the listed numbers in turn (the last repeats). */
-function seq(...values: number[]): Rng {
-  let index = 0;
-  return () => values[Math.min(index++, values.length - 1)] as number;
-}
-
-const lockInputs = (over: Partial<LockInputs> = {}): LockInputs => ({
-  table: table(),
-  regions: ['ionia', 'noxus', 'demacia', 'unaffiliated'],
-  bans: [],
-  rng: seq(0),
-  ...over,
-});
-
-describe('the card row', () => {
-  it('maps both ways', () => {
-    const tanks = state({ standing: 'fearless', pending: { id: 'class', tag: 'Tank' }, ratedOverride: true });
-    expect(rowFromState(tanks)).toEqual({
-      mode: 'fearless',
-      pending_rule: 'class',
-      pending_class_tag: 'Tank',
-      rated_override: true,
-      version: 7,
+describe('the card row (0047)', () => {
+  it('reads every rule, region wars with its pair', () => {
+    expect(
+      rowFromColumns(
+        columns({ mode: 'fearless', pending_rule: 'class', pending_class_tag: 'Tank', rated_override: true }),
+      ),
+    ).toEqual({
+      standing: 'fearless',
+      pending: { id: 'class', tag: 'Tank' },
+      rated: true,
     });
-    expect(stateFromRow(rowFromState(tanks))).toEqual(tanks);
-    const region = state({ pending: { id: 'region' } });
-    expect(stateFromRow(rowFromState(region))).toEqual(region);
+    expect(
+      rowFromColumns(
+        columns({ pending_rule: 'region', pending_region_blue: 'zaun', pending_region_red: 'noxus' }),
+      ).pending,
+    ).toEqual({ id: 'region', blue: 'zaun', red: 'noxus' });
   });
 
-  it('reads a rule this build does not know as no rule, and a missing row as a new group', () => {
-    expect(
-      stateFromRow({
-        mode: 'normal',
-        pending_rule: 'bravery',
-        pending_class_tag: null,
-        rated_override: null,
-        version: 1,
-      }).pending,
-    ).toBeNull();
+  it('reads a rule this build does not know, or a region with no pair, as no rule; a missing row as a new group', () => {
+    expect(rowFromColumns(columns({ pending_rule: 'bravery' })).pending).toBeNull();
+    expect(rowFromColumns(columns({ pending_rule: 'region' })).pending).toBeNull();
+    expect(storedFromColumns(null)).toEqual({ row: missingRow(), exists: false, updatedAt: null });
+    expect(missingRow()).toEqual({ standing: 'normal', pending: null, rated: null });
+  });
+
+  it('(pre-M20.8 adapter) the old card shape: region wars pairless, updated_at as the order', () => {
+    const legacy = stateFromRow(
+      columns({
+        pending_rule: 'region',
+        pending_region_blue: 'zaun',
+        pending_region_red: 'noxus',
+        rated_override: false,
+      }),
+    );
+    expect(legacy).toEqual({
+      standing: 'normal',
+      pending: { id: 'region' },
+      ratedOverride: false,
+      version: Date.parse('2026-10-05T18:00:00.000Z'),
+    });
     expect(missingState()).toEqual({ standing: 'normal', pending: null, ratedOverride: null, version: 0 });
   });
 });
 
-describe('the lock at Roll', () => {
-  it('locks the standing mode with the card rated flag and version (R2)', () => {
-    expect(lockFor(state({ standing: 'fearless' }), null, lockInputs())).toEqual({
+describe('the lock columns (0047: keyed on lock_mode, Rated as moved)', () => {
+  const lockRow = {
+    lock_mode: 'fearless',
+    lock_rule: 'region',
+    lock_class_tag: null,
+    lock_region_blue: 'ionia',
+    lock_region_red: 'noxus',
+    lock_rated: null,
+    locked_at: '2026-10-05T18:00:00.000Z',
+  };
+
+  it('reads the lock, a null Rated as the default, and no lock_mode as no lock', () => {
+    expect(modeLockOf(lockRow)).toEqual({
       standing: 'fearless',
-      lock: { mode: { id: 'fearless' }, rated: true, version: 7 },
-      noDraw: false,
+      mode: { id: 'region', blue: 'ionia', red: 'noxus' },
+      rated: null,
     });
-    expect(lockFor(state({ ratedOverride: false }), null, lockInputs()).lock.rated).toBe(false);
-  });
-
-  it('locks a class rule not rated by default, rated when the switch says so', () => {
-    const tanks = state({ pending: { id: 'class', tag: 'Tank' } });
-    expect(lockFor(tanks, null, lockInputs()).lock).toEqual({
-      mode: { id: 'class', tag: 'Tank' },
-      rated: false,
-      version: 7,
-    });
-    expect(lockFor({ ...tanks, ratedOverride: true }, null, lockInputs()).lock.rated).toBe(true);
-  });
-
-  it('draws two regions for region wars, never unaffiliated nor one under 8 open', () => {
-    const regionState = state({ pending: { id: 'region' } });
-    const drawn = lockFor(regionState, null, lockInputs({ rng: seq(0, 0) })).lock.mode;
-    expect(drawn).toEqual({ id: 'region', blue: 'demacia', red: 'ionia' });
-    // Under standing Fearless, five Ionia bans leave Ionia under 8: only Demacia and Noxus remain.
-    const fearless = { ...regionState, standing: 'fearless' as const };
-    const banned = lockFor(fearless, null, lockInputs({ bans: [1, 2, 3, 4, 5], rng: seq(0.99, 0.99) })).lock
-      .mode;
-    expect(banned).toEqual({ id: 'region', blue: 'noxus', red: 'demacia' });
-    // The bans count only on a Fearless night.
-    const normal = lockFor(regionState, null, lockInputs({ bans: [1, 2, 3, 4, 5], rng: seq(0.5, 0) })).lock
-      .mode;
-    expect(normal).toEqual({ id: 'region', blue: 'ionia', red: 'demacia' });
-  });
-
-  it('with no possible region draw, locks the standing mode and keeps the card rated flag', () => {
-    const lock = lockFor(state({ pending: { id: 'region' } }), null, lockInputs({ regions: ['ionia'] }));
-    expect(lock.lock).toEqual({ mode: { id: 'normal' }, rated: false, version: 7 });
-    // M15.17: and it remembers region wars was attempted.
-    expect(lock.noDraw).toBe(true);
-    // A region wars that was drawn, a class rule and a plain game are not no-draws.
-    expect(lockFor(state({ pending: { id: 'region' } }), null, lockInputs()).noDraw).toBe(false);
-    expect(lockFor(state({ pending: { id: 'class', tag: 'Tank' } }), null, lockInputs()).noDraw).toBe(false);
-    expect(lockFor(state(), null, lockInputs()).noDraw).toBe(false);
-  });
-
-  it('keeps an existing copy as it was (a roll repair)', () => {
-    const existing: StoredLock = {
-      standing: 'normal',
-      lock: { mode: { id: 'region', blue: 'ionia', red: 'noxus' }, rated: false, version: 2 },
-      noDraw: false,
-    };
-    expect(lockFor(state({ pending: { id: 'class', tag: 'Mage' } }), existing, lockInputs())).toBe(existing);
-  });
-
-  it('maps the lobby columns both ways, and a half lock reads as none', () => {
-    const stored: StoredLock = {
-      standing: 'fearless',
-      lock: { mode: { id: 'region', blue: 'ionia', red: 'noxus' }, rated: false, version: 9 },
-      noDraw: false,
-    };
-    const row = rowFromLock(stored, new Date('2026-10-04T18:00:00.000Z'));
-    expect(row).toEqual({
-      lock_mode: 'fearless',
-      lock_rule: 'region',
-      lock_class_tag: null,
-      lock_region_blue: 'ionia',
-      lock_region_red: 'noxus',
-      lock_rated: false,
-      lock_version: 9,
-      locked_at: '2026-10-04T18:00:00.000Z',
-      lock_no_draw: false,
-    });
-    expect(lockFromRow(row)).toEqual(stored);
-    expect(lockFromRow({ ...row, lock_rated: null })).toBeNull();
-    expect(lockFromRow({ ...row, lock_region_red: null })).toBeNull();
+    expect(modeLockOf({ ...lockRow, lock_rated: false })?.rated).toBe(false);
+    expect(modeLockOf({ ...lockRow, lock_mode: null })).toBeNull();
+    expect(modeLockOf({ ...lockRow, lock_region_red: null })).toBeNull();
     expect(
-      lockFromRow({ ...row, lock_rule: null, lock_region_blue: null, lock_region_red: null })?.lock.mode,
-    ).toEqual({ id: 'fearless' });
-    // M15.17: the no-draw flag both ways; a read without the column reads false.
-    const noDraw: StoredLock = {
+      modeLockOf({ ...lockRow, lock_rule: null, lock_region_blue: null, lock_region_red: null }),
+    ).toEqual({
       standing: 'fearless',
-      lock: { mode: { id: 'fearless' }, rated: false, version: 3 },
-      noDraw: true,
-    };
-    const noDrawRow = rowFromLock(noDraw, new Date('2026-10-04T18:00:00.000Z'));
-    expect(noDrawRow).toMatchObject({ lock_rule: null, lock_no_draw: true });
-    expect(lockFromRow(noDrawRow)).toEqual(noDraw);
-    const { lock_no_draw: _flag, ...withoutColumn } = noDrawRow;
-    expect(lockFromRow(withoutColumn)?.noDraw).toBe(false);
+      mode: { id: 'fearless' },
+      rated: null,
+    });
+    expect(storedLockOf(lockRow)?.lockedAt).toBe('2026-10-05T18:00:00.000Z');
+  });
+
+  it('(pre-M20.8 adapter) the old lock shape: the effective Rated, locked_at as the order', () => {
+    expect(lockFromRow(lockRow)).toEqual({
+      lock: {
+        mode: { id: 'region', blue: 'ionia', red: 'noxus' },
+        rated: false,
+        version: Date.parse('2026-10-05T18:00:00.000Z'),
+      },
+    });
+    expect(
+      lockFromRow({ ...lockRow, lock_rule: null, lock_region_blue: null, lock_region_red: null })?.lock.rated,
+    ).toBe(true);
   });
 });
 
-describe('the stamp at record', () => {
-  const tanksLock: StoredLock = {
-    standing: 'fearless',
-    lock: { mode: { id: 'class', tag: 'Tank' }, rated: false, version: 5 },
-    noDraw: false,
-  };
+describe('the stamp at record (core recordGame)', () => {
+  const tanksLock: ModeLock = { standing: 'fearless', mode: { id: 'class', tag: 'Tank' }, rated: null };
   const seats = [
     ...[1, 2, 3, 4, 5].map((championId) => ({ side: 100 as const, championId, role: null })),
     ...[6, 7, 8, 21, 91].map((championId) => ({ side: 200 as const, championId, role: null })),
   ];
+  const record = (over: Partial<ModeRecord>): ModeRecord => ({
+    kind: 'rift',
+    lock: tanksLock,
+    live: true,
+    row: row(),
+    rowUpdatedAt: '2026-10-05T18:00:00.000Z',
+    lockedAt: '2026-10-05T18:00:00.000Z',
+    ...over,
+  });
 
-  it('a rolled Rift rule game takes the lock: standing mode, rule, rated, and the check', () => {
-    const columns = stampColumns({ kind: 'rift', lock: tanksLock, state: state(), seats, table: table() });
-    expect(columns).toMatchObject({
+  it('a Rift rule game takes the lock: standing mode, rule, rated by its default, and the check', () => {
+    const stamped = stampColumns({ ...record({}), seats, table: table() });
+    expect(stamped).toMatchObject({
       mode: 'fearless',
       rule: 'class',
       rule_class_tag: 'Tank',
@@ -201,41 +171,56 @@ describe('the stamp at record', () => {
       rated: false,
       rule_checked: true,
     });
-    expect(columns.rule_check).toEqual({
+    expect(stamped.rule_check).toEqual({
       kind: 'sides',
       blue: { side: 100, verdict: 'kept', broke: [], unknown: [] },
       red: { side: 200, verdict: 'broke', broke: [21], unknown: [91] },
     });
+    expect(Object.keys(stamped)).not.toContain('rule_no_draw');
   });
 
-  it('a mid-game switch does not change the stamp: the card now is ignored when there is a lock (R2)', () => {
-    const now = state({ standing: 'normal', pending: { id: 'mirror' }, ratedOverride: true, version: 99 });
-    const columns = stampColumns({ kind: 'rift', lock: tanksLock, state: now, seats, table: table() });
-    expect(columns).toMatchObject({ mode: 'fearless', rule: 'class', rated: false });
+  it('a mid-game choice changes neither the stamp nor anything a Rift record writes (R2, M20 D7)', () => {
+    const now = row({ standing: 'normal', pending: { id: 'mirror' }, rated: true });
+    expect(stampColumns({ ...record({ row: now }), seats, table: table() })).toMatchObject({
+      mode: 'fearless',
+      rule: 'class',
+      rated: false,
+    });
+    expect(recordResultOf(record({ row: now })).patch).toEqual({});
   });
 
-  it('a remake or an ARAM keeps the lock stamp but is never rated nor checked', () => {
+  it('a remake or an ARAM keeps the lock stamp, never rated nor checked, and hands the lock back', () => {
     for (const kind of ['remake', 'aram'] as const) {
-      const columns = stampColumns({
-        kind,
-        lock: { ...tanksLock, lock: { ...tanksLock.lock, rated: true } },
-        state: state(),
-        seats,
-        table: table(),
-      });
-      expect(columns).toMatchObject({ rule: 'class', rated: false, rule_checked: false, rule_check: null });
+      const lock = { ...tanksLock, rated: true };
+      const stamped = stampColumns({ ...record({ kind, lock }), seats, table: table() });
+      expect(stamped).toMatchObject({ rule: 'class', rated: false, rule_checked: false, rule_check: null });
+      expect(recordResultOf(record({ kind, lock })).patch).toEqual({ pending: tanksLock.mode, rated: true });
+      // M20.7 review: an admin wrote the row after the lock, so nothing comes back.
+      const touched = record({ kind, lock, rowUpdatedAt: '2026-10-05T18:00:01.000Z' });
+      expect(recordResultOf(touched).patch).toEqual({});
     }
   });
 
-  it('a game with no lock takes the standing mode at its default and no rule', () => {
-    const columns = stampColumns({
-      kind: 'rift',
-      lock: null,
-      state: state({ standing: 'fearless', pending: { id: 'class', tag: 'Tank' }, ratedOverride: false }),
-      seats,
-      table: table(),
-    });
-    expect(columns).toEqual({
+  it('the row counts as touched only when written after the lock (Roll empties it at locked_at)', () => {
+    const at = '2026-10-05T18:00:00.000Z';
+    expect(rowTouchedAfterLock({ rowUpdatedAt: at, lockedAt: at })).toBe(false);
+    expect(rowTouchedAfterLock({ rowUpdatedAt: '2026-10-05T17:59:00.000Z', lockedAt: at })).toBe(false);
+    expect(rowTouchedAfterLock({ rowUpdatedAt: '2026-10-05T18:00:00.001Z', lockedAt: at })).toBe(true);
+    expect(rowTouchedAfterLock({ rowUpdatedAt: null, lockedAt: at })).toBe(false);
+    expect(rowTouchedAfterLock({ rowUpdatedAt: at, lockedAt: null })).toBe(false);
+  });
+
+  it('a live game with no lock plays the pending rule and Rated, and uses them up', () => {
+    const now = row({ standing: 'fearless', pending: { id: 'class', tag: 'Tank' }, rated: true });
+    const result = recordResultOf(record({ lock: null, row: now }));
+    expect(result.stamp).toMatchObject({ mode: { id: 'class', tag: 'Tank' }, rated: true, checked: true });
+    expect(result.patch).toEqual({ pending: null, rated: null });
+  });
+
+  it('a backfill (or a finished or dropped lobby with no lock) takes the standing default and touches nothing', () => {
+    const now = row({ standing: 'fearless', pending: { id: 'class', tag: 'Tank' }, rated: false });
+    const stamped = stampColumns({ ...record({ lock: null, live: false, row: now }), seats, table: table() });
+    expect(stamped).toEqual({
       mode: 'fearless',
       rule: null,
       rule_class_tag: null,
@@ -244,168 +229,18 @@ describe('the stamp at record', () => {
       rated: true,
       rule_checked: false,
       rule_check: null,
-      rule_no_draw: false,
     });
+    expect(recordResultOf(record({ lock: null, live: false, row: now })).patch).toEqual({});
   });
 
-  it('a no-draw lock stamps the standing mode, not rated, with rule_no_draw (M15.17)', () => {
-    const noDraw: StoredLock = {
-      standing: 'fearless',
-      lock: { mode: { id: 'fearless' }, rated: false, version: 4 },
-      noDraw: true,
-    };
-    expect(stampColumns({ kind: 'rift', lock: noDraw, state: state(), seats, table: table() })).toMatchObject(
-      {
-        mode: 'fearless',
-        rule: null,
-        rated: false,
-        rule_checked: false,
-        rule_no_draw: true,
-      },
-    );
-    expect(
-      stampColumns({ kind: 'rift', lock: tanksLock, state: state(), seats, table: table() }).rule_no_draw,
-    ).toBe(false);
-  });
-});
-
-describe('the compare-and-clear after record', () => {
-  const lock: StoredLock = {
-    standing: 'normal',
-    lock: { mode: { id: 'class', tag: 'Tank' }, rated: false, version: 7 },
-    noDraw: false,
-  };
-
-  it('clears the rule and the switch when nothing moved since Roll', async () => {
-    const t = memoryModeStore(state({ pending: { id: 'class', tag: 'Tank' }, ratedOverride: false }));
-    expect(await clearAfterRecord(t.store, 'g', recordedGame('rift', lock))).toBe(true);
-    expect(t.row()).toEqual(state({ version: 8 }));
-    // The server's write keeps the last admin's set_by.
-    expect(t.writes[0]?.writer).toEqual({});
-  });
-
-  it('keeps a rule queued mid-game (the version moved)', async () => {
-    const t = memoryModeStore(state({ pending: { id: 'class', tag: 'Mage' }, version: 8 }));
-    expect(await clearAfterRecord(t.store, 'g', recordedGame('rift', lock))).toBe(false);
-    expect(t.row()?.pending).toEqual({ id: 'class', tag: 'Mage' });
-  });
-
-  it('a remake, an ARAM or a game with no lock leaves the rule pending', async () => {
-    for (const game of [
-      recordedGame('remake', lock),
-      recordedGame('aram', lock),
-      recordedGame('rift', null),
-    ]) {
-      const t = memoryModeStore(state({ pending: { id: 'class', tag: 'Tank' } }));
-      expect(await clearAfterRecord(t.store, 'g', game)).toBe(false);
-      expect(t.writes).toEqual([]);
-    }
-  });
-
-  it('audit defect 3: a Rated flip landing mid-clear is retried, and the rule is still used up', async () => {
-    const t = memoryModeStore(state({ pending: { id: 'class', tag: 'Tank' } }));
-    // An admin flips Rated between the clear's read and its write: the first write loses.
-    t.beforeNextWrite(() =>
-      t.set(state({ pending: { id: 'class', tag: 'Tank' }, ratedOverride: true, version: 8 })),
-    );
-    expect(await clearAfterRecord(t.store, 'g', recordedGame('rift', lock))).toBe(true);
-    // The rule is used up (it would have repeated next game); the flip stays for the next game.
-    expect(t.row()).toEqual(state({ ratedOverride: true, version: 9 }));
-  });
-
-  it("audit defect 3: a rule re-queued mid-clear is retried against the admin's write and survives", async () => {
-    const t = memoryModeStore(state({ pending: { id: 'class', tag: 'Tank' } }));
-    t.beforeNextWrite(() => t.set(state({ pending: { id: 'class', tag: 'Tank' }, version: 8 })));
-    expect(await clearAfterRecord(t.store, 'g', recordedGame('rift', lock))).toBe(false);
-    expect(t.row()).toEqual(state({ pending: { id: 'class', tag: 'Tank' }, version: 8 }));
-  });
-
-  it('audit defect 3: losing every attempt is logged, never thrown', async () => {
-    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
-    const t = memoryModeStore(state({ pending: { id: 'class', tag: 'Tank' } }));
-    const losing = {
-      read: t.store.read,
-      write: async () => false,
-    };
-    expect(await clearAfterRecord(losing, 'g', recordedGame('rift', lock))).toBe(false);
-    expect(error).toHaveBeenCalledTimes(1);
-    error.mockRestore();
-  });
-
-  it('a second post of the same game is a no-op', async () => {
-    const t = memoryModeStore(state({ pending: { id: 'class', tag: 'Tank' } }));
-    await clearAfterRecord(t.store, 'g', recordedGame('rift', lock));
-    expect(await clearAfterRecord(t.store, 'g', recordedGame('rift', lock))).toBe(false);
-    expect(t.writes).toHaveLength(1);
-  });
-});
-
-describe('Spin', () => {
-  const inputs = { table: table(), bans: [] as number[], previous: null, rng: seq(0, 0) };
-
-  it('never returns a standing mode, and returns mirror too (M17.17), over every RNG value', () => {
-    const seen = new Set<string | undefined>();
-    for (let a = 0; a < 1; a += 0.05) {
-      for (let b = 0; b < 1; b += 0.1) {
-        const rule = spinFor(state(), { ...inputs, rng: seq(a, b) });
-        expect(rule).not.toBeNull();
-        expect(['class', 'region', 'mirror']).toContain(rule?.id);
-        seen.add(rule?.id);
-      }
-    }
-    expect(seen.has('mirror')).toBe(true);
-  });
-
-  it('never hands mirror to a lobby that is already open (made as it was, likely Draft Pick)', () => {
-    const seen = new Set<string | undefined>();
-    for (let a = 0; a < 1; a += 0.05) {
-      for (let b = 0; b < 1; b += 0.1) {
-        const rule = spinFor(state(), { ...inputs, lobbyOpen: true, rng: seq(a, b) });
-        expect(rule?.id).not.toBe('mirror');
-        seen.add(rule?.id);
-      }
-    }
-    expect([...seen].sort()).toEqual(['class', 'region']);
-    // With nothing else playable, Spin says there is nothing to spin rather than mirror.
-    const onlyMirrorLeft = spinFor(state({ standing: 'fearless' }), {
-      ...inputs,
-      bans: [...Array.from({ length: 60 }, (_, i) => i + 1)],
-      lobbyOpen: true,
-      rng: seq(0, 0),
+  it('a region wars no-draw lock is the standing mode, rated as the moved switch says (M20 D6 (d))', () => {
+    const noDraw: ModeLock = { standing: 'fearless', mode: { id: 'fearless' }, rated: false };
+    expect(stampColumns({ ...record({ lock: noDraw }), seats, table: table() })).toMatchObject({
+      mode: 'fearless',
+      rule: null,
+      rated: false,
+      rule_checked: false,
     });
-    expect(onlyMirrorLeft).toBeNull();
-    expect(
-      spinFor(state({ standing: 'fearless' }), {
-        ...inputs,
-        bans: [...Array.from({ length: 60 }, (_, i) => i + 1)],
-        lobbyOpen: false,
-        rng: seq(0, 0),
-      }),
-    ).toEqual({ id: 'mirror' });
-  });
-
-  it('never returns the previous rule, nor an option too small to play', () => {
-    // The table has no Support champion besides one: Supports only is never drawn.
-    for (let a = 0; a < 1; a += 0.05) {
-      for (let b = 0; b < 1; b += 0.05) {
-        const rule = spinFor(state(), {
-          ...inputs,
-          previous: { id: 'class', tag: 'Tank' },
-          rng: seq(a, b),
-        });
-        expect(rule).not.toEqual({ id: 'class', tag: 'Tank' });
-        expect(rule).not.toEqual({ id: 'class', tag: 'Support' });
-      }
-    }
-  });
-
-  it('counts the Fearless bans only on a Fearless night', () => {
-    const bans = [1, 2, 3, 21, 22, 23, 41, 42, 43];
-    // Under Fearless every class drops to 9 open (under 10), while each region keeps 9 (8 or more).
-    const fearless = spinFor(state({ standing: 'fearless' }), { ...inputs, bans, rng: seq(0, 0) });
-    expect(fearless).toEqual({ id: 'region' });
-    const normal = spinFor(state(), { ...inputs, bans, rng: seq(0, 0) });
-    expect(normal?.id).toBe('class');
   });
 });
 
@@ -431,13 +266,28 @@ describe('the champion table and the RNG', () => {
 });
 
 describe('the notices', () => {
-  it("say the brief's announcer lines", () => {
+  it("say the brief's announcer lines and M20.1's region lines", () => {
     expect(ruleChosenNotice({ id: 'class', tag: 'Tank' }, false)).toBe(
       'Next game: Class wars, tanks only. Not rated.',
     );
     expect(ruleChosenNotice({ id: 'mirror' }, true)).toBe('Next game: Mirror match. Rated.');
+    expect(ruleChosenNotice({ id: 'region', blue: 'zaun', red: 'noxus' }, false)).toBe(
+      'Next game: Region wars. Blue: Zaun · Red: Noxus. Not rated.',
+    );
     expect(spinNotice({ id: 'class', tag: 'Marksman' })).toBe('Spin says: Marksmen only.');
-    expect(spinNotice({ id: 'region' })).toBe('Spin says: Region wars.');
+    expect(spinNotice({ id: 'region', blue: 'zaun', red: 'noxus' })).toBe(
+      'Spin says: Region wars. Blue: Zaun · Red: Noxus.',
+    );
+    expect(nextPairNotice({ blue: 'shurima', red: 'zaun' })).toBe('Next game: Shurima vs Zaun.');
+    expect(thisPairNotice({ blue: 'shurima', red: 'zaun' })).toBe(
+      'New regions: Shurima vs Zaun. Picks already made stay, and the check uses the new regions.',
+    );
+    expect(
+      shortPairRedrawnNotice({ blue: 'mount-targon', red: 'zaun' }, { blue: 'shurima', red: 'zaun' }),
+    ).toBe('Targon vs Zaun ran short after the bans, so Roll drew Shurima vs Zaun.');
+    expect(nextPairNotice({ blue: 'shadow-isles', red: 'bandle-city' })).toBe(
+      'Next game: Shadow Isles vs Bandle City.',
+    );
     expect(ratedNotice(true)).toBe('Next game is rated.');
     expect(ratedNotice(false)).toBe('Next game is not rated.');
     expect(standingNotice('fearless', true)).toBe('Rule cleared. Back to Fearless.');

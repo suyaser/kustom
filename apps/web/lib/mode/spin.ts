@@ -1,79 +1,19 @@
-import {
-  type ChampionTable,
-  drawSpin,
-  type Mode,
-  type ModeState,
-  type Rng,
-  RULE_OPTIONS,
-  type RuleOption,
-  rulePlayable,
-} from '@customs/core';
+import type { Mode } from '@customs/core';
 import { ruleModeOf } from '@customs/db/schemas';
-import { loadFearless } from '../fearless/load';
 import { nightStart } from '../night';
 import type { ServiceClient } from '../supabase';
-import { championTable } from './champions';
 
 /**
- * Spin, the server's pick (M15.3; brief D3, R3). The draw is core's `drawSpin`: a family
- * uniformly, then an option, never a standing mode, a family from `SPIN_FAMILIES` (mirror included, M17.17), never an
- * unplayable option, never tonight's previous rule. This file only gathers its inputs: the
- * champion table, the Fearless bans (on a standing-Fearless night only, D7), the previous rule,
- * whether tonight's lobby is already open, and a real RNG (`lib/mode/rng.ts`) the browser never sees.
+ * Spin's inputs from the database (M15.3; brief D3, R3; M20.7). The draw itself is core's
+ * `transition` (`{ type: 'spin', previous, blocked }`): a family uniformly, then an option, never a
+ * standing mode, never an unplayable option, never tonight's previous rule, and region wars with its
+ * pair drawn in the same write (M20 D10). This file only reads the previous rule and whether
+ * tonight's lobby is already open.
  *
  * **Mirror needs a lobby Kustom has not made yet** (QA fix 2026-10-04). Start a lobby asks the
  * companion for Blind Pick only when it makes the lobby (M17.17); a lobby that is already `open`
- * was made as it was, most likely Draft Pick. So while one is open, mirror is unplayable for Spin.
+ * was made as it was, most likely Draft Pick. So while one is open, mirror is blocked for Spin.
  */
-
-export interface SpinInputs {
-  table: ChampionTable;
-  /** The group's Fearless pool. Counted only while the standing mode is Fearless. */
-  bans: readonly number[];
-  /** Tonight's previous rule: the live lobby's locked rule, else tonight's last rule game. */
-  previous: Mode | null;
-  /** Tonight's lobby is `open` (already made): mirror is out. */
-  lobbyOpen?: boolean;
-  rng: Rng;
-}
-
-/** The pick for this card state, or null when nothing is left to draw. Pure. */
-export function spinFor(state: ModeState, inputs: SpinInputs): RuleOption | null {
-  const bans = state.standing === 'fearless' ? inputs.bans : [];
-  return drawSpin(
-    RULE_OPTIONS,
-    inputs.previous,
-    (rule) => !(rule.id === 'mirror' && inputs.lobbyOpen === true) && rulePlayable(rule, inputs.table, bans),
-    inputs.rng,
-  );
-}
-
-/**
- * The draw a card write runs (`writeModeCard`'s `spin` action): the bans are read only when the
- * state it is drawing for is on Fearless, and the previous rule once.
- */
-export function spinDraw(
-  client: ServiceClient,
-  input: { groupId: string; now: Date; timeZone: string; rng: Rng; table?: ChampionTable },
-): (state: ModeState) => Promise<RuleOption | null> {
-  let previous: Promise<Mode | null> | null = null;
-  let lobbyOpen: Promise<boolean> | null = null;
-  return async (state) => {
-    previous ??= previousRule(client, input.groupId, input.now, input.timeZone);
-    lobbyOpen ??= hasOpenLobby(client, input.groupId);
-    const bans =
-      state.standing === 'fearless'
-        ? (await loadFearless(client, input.groupId)).champions.map((champion) => champion.id)
-        : [];
-    return spinFor(state, {
-      table: input.table ?? championTable(),
-      bans,
-      previous: await previous,
-      lobbyOpen: await lobbyOpen,
-      rng: input.rng,
-    });
-  };
-}
 
 /**
  * "Tonight's previous rule" (D3: no `Tanks only` twice in a row). The rule locked on the group's
@@ -135,22 +75,4 @@ export async function hasOpenLobby(client: ServiceClient, groupId: string): Prom
     .limit(1);
   if (error) throw new Error(`spin: open lobby lookup failed: ${error.message}`);
   return (data ?? []).length > 0;
-}
-
-/**
- * The server's rule check for a pick (QA fix 2026-10-04): core's `rulePlayable` with the Fearless
- * bans counted on a standing-Fearless night only (D7), the same test the select's
- * ` (too few open)` uses, so a stale page or a hand-made post cannot queue a rule nobody can play.
- */
-export function ruleCheck(
-  client: ServiceClient,
-  input: { groupId: string; table?: ChampionTable },
-): (state: ModeState, rule: RuleOption) => Promise<boolean> {
-  return async (state, rule) => {
-    const bans =
-      state.standing === 'fearless'
-        ? (await loadFearless(client, input.groupId)).champions.map((champion) => champion.id)
-        : [];
-    return rulePlayable(rule, input.table ?? championTable(), bans);
-  };
 }

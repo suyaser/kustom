@@ -4,14 +4,14 @@ import type { ServiceClient } from '../supabase';
  * Tests only: keep a real group's Mode card as the test found it.
  *
  * Since M15.3 a game recorded from a rolled lobby runs compare-and-clear on its group's
- * `group_modes` row: the pending rule and the Rated switch are cleared and `version` moves. An
+ * `group_modes` row (M20.7: a hand-back or a lockless game's use-up; Roll moves the pending fields). An
  * integration file that rolls lobbies in the shared `customs` group would otherwise wipe whatever
  * rule or Rated override somebody set on the local stack. Call this in `beforeAll` and the
  * returned function in `afterAll`: it writes the snapshotted card state back with the service
  * role (or deletes a row the test created where there was none).
  */
 const COLUMNS =
-  'mode, pending_rule, pending_class_tag, rated_override, version, pending_set_by, set_by' as const;
+  'mode, pending_rule, pending_class_tag, pending_region_blue, pending_region_red, rated_override, pending_set_by, set_by' as const;
 
 export async function snapshotGroupModes(
   client: ServiceClient,

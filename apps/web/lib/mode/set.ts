@@ -1,137 +1,131 @@
 import {
-  chooseRule,
-  chooseStanding,
-  type ModeState,
-  nextGame,
+  lockTransition,
+  type ModeAction,
+  type ModeLock,
+  nextRated,
+  type Refusal,
+  type RegionAction,
   type RuleOption,
-  type StandingModeId,
-  sameRule,
-  setRated,
+  ruleOf,
+  type TransitionContext,
+  transition,
 } from '@customs/core';
-import { type NextGame, ruleChoiceOf } from '@customs/db/schemas';
+import { type NextGame, ruleChoiceOf, ruleColumnsOf } from '@customs/db/schemas';
 import type { ServiceClient } from '../supabase';
-import { type ModeStore, type StoredModeState, supabaseModeStore } from './state';
+import { LOCK_COLUMNS, type StoredLock, storedLockOf } from './lock';
+import { legacyStateOf, type ModeStore, patchIsNoop, type StoredModeRow } from './state';
 
 /**
- * One write to the Mode card (M14.29, extended by M15.3): the standing mode, the next game's rule,
- * the Rated switch, or a Spin. Core decides the new state (`chooseStanding`, `chooseRule`,
- * `setRated`); this applies it to the group's `group_modes` row, compare-and-set on `version`.
+ * One write to the Mode card (M20.7): core's `transition` decides the patch, and the patch is
+ * written as **one update of only its fields** (M20 D7: last write wins; nothing re-reads, nothing
+ * compares). A repeat of the standing mode with nothing pending and the switch at its default
+ * writes nothing (M14.29's `changed: false`, no Realtime event, no live bump); every other action
+ * writes even when it repeats, so a tap is never silently dropped against a stale read.
  *
- * **What moves the version.** Every write that changes something. A repeat of the current
- * standing mode with nothing pending and the switch at its default writes nothing (M14.29's
- * `changed: false`, no Realtime event). A rule pick, a Spin and a Rated flip always write, even
- * when they repeat what is pending: a rule re-queued mid-game, or the switch set again, is a
- * choice for the **next** game and must survive the running game's compare-and-clear (decision
- * row 2026-10-04, the version token). A Rated-only flip after Roll changes only Rated: the record
- * still uses up the locked rule (core's `onlyRatedSinceRoll`, the user's decision 2026-10-04).
+ * `this` (the region actions on this game's lock, M20 D9) is {@link writeLockRegions}: one
+ * conditional update of the lock's pair, only while the lobby is `balanced` with a region lock.
  *
- * **Two admins at once.** The write is compare-and-set; the loser re-reads and re-applies its
- * action to the winner's state, so the last write wins and nothing is half-applied.
- *
- * Posts nothing to Discord (changing the mode is not news).
+ * Posts nothing to Discord here (the `this` route resends the teams post itself).
  */
 
-export type ModeAction =
-  | { kind: 'standing'; standing: StandingModeId }
-  /**
-   * A rule pick. `playable` (QA fix 2026-10-04) is the server's check for the state it is written
-   * on: false refuses the pick (`too-few-open`), unless it is the rule already pending.
-   */
-  | { kind: 'rule'; rule: RuleOption; playable?: (state: ModeState, rule: RuleOption) => Promise<boolean> }
-  | { kind: 'rated'; rated: boolean }
-  /** Spin: `draw` is the server's pick for this state (`lib/mode/spin.ts`), or null for none. */
-  | { kind: 'spin'; draw: (state: ModeState) => Promise<RuleOption | null> };
-
 export type ModeWriteResult =
-  | { ok: true; state: ModeState; changed: boolean; spun: RuleOption | null }
-  /** Spin found nothing playable (every option excluded). Nothing was written. */
-  | { ok: false; reason: 'nothing-to-spin'; state: ModeState }
-  /** A rule pick with too few champions open tonight (Fearless bans counted). Nothing was written. */
-  | { ok: false; reason: 'too-few-open'; state: ModeState };
-
-/** Re-reads after a lost compare-and-set before giving up (a write storm, not a normal night). */
-const MAX_ATTEMPTS = 5;
+  | { ok: true; before: StoredModeRow; after: StoredModeRow; changed: boolean; spun: RuleOption | null }
+  | { ok: false; refusal: Refusal; before: StoredModeRow };
 
 export async function writeModeCard(
   store: ModeStore,
-  input: { groupId: string; playerId: string; action: ModeAction },
+  input: {
+    groupId: string;
+    playerId: string;
+    action: ModeAction;
+    /** The draw's inputs for the row as read (bans counted on its standing mode). */
+    context: (before: StoredModeRow) => Promise<TransitionContext>;
+  },
 ): Promise<ModeWriteResult> {
-  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
-    const current = await store.read(input.groupId);
-    const step = await apply(current, input.action);
-    if (step.kind === 'nothing-to-spin' || step.kind === 'too-few-open')
-      return { ok: false, reason: step.kind, state: current.state };
-    if (step.kind === 'unchanged') return { ok: true, state: current.state, changed: false, spun: null };
+  const before = await store.read(input.groupId);
+  const result = transition(before.row, input.action, await input.context(before));
+  if (!result.ok) return { ok: false, refusal: result.refusal, before };
 
-    const wrote = await store.write(input.groupId, current, step.next, {
-      playerId: input.playerId,
-      setsRule: input.action.kind === 'rule' || input.action.kind === 'spin',
-    });
-    if (wrote) return { ok: true, state: step.next, changed: true, spun: step.spun };
+  const spun =
+    input.action.type === 'spin' && result.patch.pending != null ? ruleOf(result.patch.pending) : null;
+  if (input.action.type === 'standing' && patchIsNoop(before.row, result.patch)) {
+    return { ok: true, before, after: before, changed: false, spun };
   }
-  throw new Error(
-    `mode: ${MAX_ATTEMPTS} writes in a row lost the compare-and-set for group ${input.groupId}`,
-  );
+  const after = await store.write(input.groupId, result.patch, { playerId: input.playerId });
+  return { ok: true, before, after, changed: true, spun };
 }
 
-type Step =
-  | { kind: 'unchanged' }
-  | { kind: 'nothing-to-spin' }
-  | { kind: 'too-few-open' }
-  | { kind: 'write'; next: ModeState; spun: RuleOption | null };
-
-async function apply(current: StoredModeState, action: ModeAction): Promise<Step> {
-  const state = current.state;
-  switch (action.kind) {
-    case 'standing': {
-      const repeat =
-        state.standing === action.standing && state.pending === null && state.ratedOverride === null;
-      // A missing row read as Normal: writing Normal there changes nothing anybody could see.
-      if (repeat) return { kind: 'unchanged' };
-      return { kind: 'write', next: chooseStanding(state, action.standing), spun: null };
-    }
-    case 'rule': {
-      // The rule already pending stays pickable, as the select keeps it (`tooFewOpen`).
-      const pending = sameRule(state.pending, action.rule);
-      if (!pending && action.playable !== undefined && !(await action.playable(state, action.rule)))
-        return { kind: 'too-few-open' };
-      return { kind: 'write', next: chooseRule(state, action.rule), spun: null };
-    }
-    case 'rated':
-      return { kind: 'write', next: setRated(state, action.rated), spun: null };
-    case 'spin': {
-      const rule = await action.draw(state);
-      if (rule === null) return { kind: 'nothing-to-spin' };
-      return { kind: 'write', next: chooseRule(state, rule), spun: rule };
-    }
-  }
+/** This game's lock for the region actions: the group's live lobby with a lock, if any. */
+export interface LiveLock {
+  lobbyId: string;
+  status: string;
+  stored: StoredLock;
 }
 
-/** The card's answer for a state: core's `nextGame`, the standing mode and the token. */
-export function nextGameOf(state: ModeState): NextGame {
-  const next = nextGame(state);
-  return {
-    standing: state.standing,
-    rule: next.rule === null ? null : ruleChoiceOf(next.rule),
-    rated: next.rated,
-    ratedOverride: state.ratedOverride,
-    version: state.version,
-  };
+/** The group's newest `balanced` or `in_game` lobby that has a lock, or null. */
+export async function readLiveLock(client: ServiceClient, groupId: string): Promise<LiveLock | null> {
+  const { data, error } = await client
+    .from('lobbies')
+    .select(`id, status, ${LOCK_COLUMNS}`)
+    .eq('group_id', groupId)
+    .in('status', ['balanced', 'in_game'])
+    .not('lock_mode', 'is', null)
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(`mode: live lock read failed: ${error.message}`);
+  if (data === null) return null;
+  const stored = storedLockOf(data);
+  return stored === null ? null : { lobbyId: data.id, status: data.status, stored };
+}
+
+export type LockWriteResult =
+  | { ok: true; lobbyId: string; lock: ModeLock }
+  | { ok: false; refusal: Refusal | 'started' | 'no-lock' };
+
+/**
+ * Redraw or set one side on this game's lock (M20 D9, D5): core's `lockTransition` over the bans as
+ * they are now, then one update of the two region columns, only while the lobby is still
+ * `balanced` and still on region wars. A game that started in between is refused, never changed.
+ */
+export async function writeLockRegions(
+  client: ServiceClient,
+  input: {
+    groupId: string;
+    action: RegionAction;
+    context: (lock: ModeLock) => Promise<TransitionContext>;
+  },
+): Promise<LockWriteResult> {
+  const live = await readLiveLock(client, input.groupId);
+  if (live === null) return { ok: false, refusal: 'no-lock' };
+  if (live.status !== 'balanced') return { ok: false, refusal: 'started' };
+  const result = lockTransition(live.stored.lock, input.action, await input.context(live.stored.lock));
+  if (!result.ok) return { ok: false, refusal: result.refusal };
+
+  const pair = ruleColumnsOf(result.lock.mode);
+  const { data, error } = await client
+    .from('lobbies')
+    .update({ lock_region_blue: pair.regionBlue, lock_region_red: pair.regionRed })
+    .eq('id', live.lobbyId)
+    .eq('status', 'balanced')
+    .eq('lock_rule', 'region')
+    .select('id');
+  if (error) throw new Error(`mode: lock region write failed: ${error.message}`);
+  if ((data ?? []).length === 0) return { ok: false, refusal: 'started' };
+  return { ok: true, lobbyId: live.lobbyId, lock: result.lock };
 }
 
 /**
- * M14.29's entry point, kept: set the standing mode. `changed: false` for a repeat that writes
- * nothing. Picking a standing mode clears a pending rule and resets the Rated switch (R1).
+ * @deprecated M20.8: the pre-M20.8 card client's `next` answer. `version` is
+ * `Date.parse(updated_at)` (`legacyStateOf`), which the client store orders by.
  */
-export async function setGroupMode(
-  client: ServiceClient,
-  input: { groupId: string; mode: StandingModeId; playerId: string },
-): Promise<{ mode: StandingModeId; changed: boolean }> {
-  const result = await writeModeCard(supabaseModeStore(client), {
-    groupId: input.groupId,
-    playerId: input.playerId,
-    action: { kind: 'standing', standing: input.mode },
-  });
-  if (!result.ok) throw new Error('mode: a standing-mode write cannot be a spin');
-  return { mode: result.state.standing, changed: result.changed };
+export function nextGameOf(stored: StoredModeRow): NextGame {
+  const legacy = legacyStateOf(stored);
+  return {
+    standing: stored.row.standing,
+    rule: legacy.pending === null ? null : ruleChoiceOf(legacy.pending),
+    rated: nextRated(stored.row),
+    ratedOverride: stored.row.rated,
+    version: legacy.version,
+  };
 }

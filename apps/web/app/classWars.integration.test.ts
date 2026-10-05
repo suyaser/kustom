@@ -52,13 +52,13 @@ import { storedRosterKey } from '@/lib/testing/roll';
 
 const stack = await resolveLocalStack();
 
-async function has0032(url: string, key: string): Promise<boolean> {
+async function has0047(url: string, key: string): Promise<boolean> {
   const probe = createClient<Database>(url, key, { auth: { persistSession: false } });
-  const { error } = await probe.from('lobbies').select('lock_mode').limit(1);
+  const { error } = await probe.from('group_modes').select('pending_region_blue').limit(1);
   return error === null;
 }
 
-const ready = stack !== null && (await has0032(stack.url, stack.serviceRoleKey));
+const ready = stack !== null && (await has0047(stack.url, stack.serviceRoleKey));
 
 /** mulberry32: a fixed seed, so the Spin below lands where the test says. */
 function seededRng(seed: number): Rng {
@@ -94,7 +94,7 @@ const GAME2 = [86, 122, 238, 55, 67, 81, 117, 40, 254, 121];
 
 if (stack === null || !ready) {
   describe.skip('class wars end to end against the local Supabase stack', () => {
-    it('needs the local stack with 0032 applied: `pnpm db:start`', () => {
+    it('needs the local stack with 0047 applied: `pnpm db:start`', () => {
       expect(true).toBe(true);
     });
   });
@@ -107,7 +107,7 @@ if (stack === null || !ready) {
   process.env.CUSTOMS_NIGHT_TZ = 'Africa/Cairo';
 
   // The roll handler import registers the Discord and command-queue listeners; the game route the same.
-  const { setGroupModeRoute, spinModeRoute } = await import('./api/admin/mode/handler');
+  const { setGroupModeRoute } = await import('./api/admin/mode/handler');
   const { rollRoute } = await import('./api/admin/lobbies/[lobbyId]/roll/handler');
   const { POST: postLobby } = await import('./api/companion/lobby/route');
   const { POST: postGame } = await import('./api/companion/game/route');
@@ -199,7 +199,9 @@ if (stack === null || !ready) {
   async function cardRow() {
     const { data, error } = await db
       .from('group_modes')
-      .select('mode, pending_rule, pending_class_tag, rated_override, version')
+      .select(
+        'mode, pending_rule, pending_class_tag, pending_region_blue, pending_region_red, rated_override',
+      )
       .eq('group_id', group.id)
       .single();
     if (error) throw new Error(error.message);
@@ -442,8 +444,9 @@ if (stack === null || !ready) {
     });
 
     it('2. an admin Spin, seeded, lands on Tanks only', async () => {
-      const response = await spinModeRoute({ ...adminOptions, rng: seededRng(SPIN_SEED) })(
-        jsonRequest('/api/admin/mode/spin', { groupId: group.id }),
+      // M20.7: Spin is the one mode route with `spin: true`.
+      const response = await setGroupModeRoute({ ...adminOptions, rng: seededRng(SPIN_SEED) })(
+        jsonRequest('/api/admin/mode', { groupId: group.id, spin: true }),
       );
       expect(response.status).toBe(200);
       expect(await response.json()).toMatchObject({
@@ -510,22 +513,23 @@ if (stack === null || !ready) {
 
     it('4. Roll locks it, and the teams post says it with the panel link', async () => {
       const { lobbyId, partyId } = night.ruleLobby;
-      const version = (await cardRow()).version;
       await roll(lobbyId);
       const { data: lock, error } = await db
         .from('lobbies')
-        .select('status, lock_mode, lock_rule, lock_class_tag, lock_rated, lock_version')
+        .select('status, lock_mode, lock_rule, lock_class_tag, lock_rated')
         .eq('id', lobbyId)
         .single();
       if (error) throw new Error(error.message);
+      // M20.7: Roll moves the rule and Rated as they were (null = the rule's default, not rated)
+      // onto the lock and empties the row.
       expect(lock).toEqual({
         status: 'balanced',
         lock_mode: 'fearless',
         lock_rule: 'class',
         lock_class_tag: 'Tank',
-        lock_rated: false,
-        lock_version: version,
+        lock_rated: null,
       });
+      expect(await cardRow()).toMatchObject({ pending_rule: null, rated_override: null });
 
       expect(posts).toHaveLength(1);
       const teams = descriptionOf(posts[0]);

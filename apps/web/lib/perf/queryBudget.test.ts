@@ -53,7 +53,6 @@ function fixtures(): Fixtures {
     rule_region_blue: null,
     rule_region_red: null,
     rule_checked: false,
-    rule_no_draw: false,
     source: 'live',
     mode: 'CLASSIC',
     gameMode: 'CLASSIC',

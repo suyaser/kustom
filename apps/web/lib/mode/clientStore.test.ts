@@ -151,12 +151,15 @@ describe('the rows as the store takes them', () => {
       ['class', null],
       ['aram', null],
     ] as const) {
+      // M20.7: region wars is never on the row without its pair.
       const row = {
         mode: 'fearless',
         pending_rule: rule,
         pending_class_tag: tag,
+        pending_region_blue: rule === 'region' ? 'zaun' : null,
+        pending_region_red: rule === 'region' ? 'noxus' : null,
         rated_override: null,
-        version: 1,
+        updated_at: '2026-10-05T18:00:00.000Z',
       };
       expect(pendingOfRow(rule, tag)).toEqual(stateFromRow(row).pending);
     }
@@ -168,8 +171,9 @@ describe('the rows as the store takes them', () => {
       mode: 'normal',
       pending_rule: 'class',
       pending_class_tag: 'Mage',
+      pending_region_blue: null,
+      pending_region_red: null,
       rated_override: true,
-      version: 9,
       updated_at: '2026-10-04T20:00:00.000+00:00',
       set_by: '33333333-3333-4333-8333-333333333333',
       pending_set_by: '33333333-3333-4333-8333-333333333333',
@@ -177,7 +181,13 @@ describe('the rows as the store takes them', () => {
     expect(parsed).toEqual({
       groupId: GROUP,
       slice: {
-        state: { standing: 'normal', pending: { id: 'class', tag: 'Mage' }, ratedOverride: true, version: 9 },
+        // M20.7: no version column; the store orders by `updated_at`.
+        state: {
+          standing: 'normal',
+          pending: { id: 'class', tag: 'Mage' },
+          ratedOverride: true,
+          version: Date.parse('2026-10-04T20:00:00.000+00:00'),
+        },
         updatedAt: '2026-10-04T20:00:00.000+00:00',
       },
     });

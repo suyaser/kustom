@@ -38,9 +38,7 @@ export async function loadModeState(client: PublicClient, groupId: string): Prom
 export async function loadLobbyLock(client: PublicClient, lobbyId: string): Promise<LockedMode | null> {
   const { data, error } = await client
     .from('lobbies')
-    .select(
-      'lock_mode, lock_rule, lock_class_tag, lock_region_blue, lock_region_red, lock_rated, lock_version',
-    )
+    .select('lock_mode, lock_rule, lock_class_tag, lock_region_blue, lock_region_red, lock_rated, locked_at')
     .eq('id', lobbyId)
     .maybeSingle();
   if (error) {
@@ -62,7 +60,7 @@ export async function loadTonightLobbyLock(
   const { data, error } = await client
     .from('lobbies')
     .select(
-      'status, lock_mode, lock_rule, lock_class_tag, lock_region_blue, lock_region_red, lock_rated, lock_version',
+      'status, lock_mode, lock_rule, lock_class_tag, lock_region_blue, lock_region_red, lock_rated, locked_at',
     )
     .eq('group_id', groupId)
     .gte('created_at', nightStart.toISOString())

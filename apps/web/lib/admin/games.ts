@@ -239,8 +239,6 @@ export type RatedReason =
   | { kind: 'switched-off' }
   /** M15.13: it started before the owner's latest Reset ratings (M14.18); the fold skips it for good. */
   | { kind: 'before-reset' }
-  /** M15.17: region wars was picked but could not be drawn at Roll; played as the standing mode, not rated. */
-  | { kind: 'no-draw' }
   | { kind: 'waiting' };
 
 export interface RatedReasonInput {
@@ -252,8 +250,6 @@ export interface RatedReasonInput {
   rated: boolean;
   /** The rule columns of the row (`0032`). */
   rule: { rule: string | null; classTag: string | null; regionBlue: string | null; regionRed: string | null };
-  /** `games.rule_no_draw` (M15.17, `0035`): the lobby locked a region wars it could not draw. */
-  noDraw: boolean;
   /** `games.started_at` (M15.13). */
   startedAt: string;
   /** `groups.ratings_since`, the group's ratings epoch (M14.18), or null for a group that never reset. */
@@ -286,8 +282,6 @@ export function ratedReason(game: RatedReasonInput): RatedReason {
         : { kind: 'not-rift' };
     case 'not-rated': {
       const mode = ruleModeOf(game.rule);
-      // Region wars that could not be drawn: played as the standing mode at region wars' rating.
-      if (mode === null && game.noDraw) return { kind: 'no-draw' };
       const rule = mode === null ? null : ruleOf(mode);
       // A rule that is rated by default (mirror match) was switched off by hand.
       return mode !== null && rule !== null && !modeRatedDefault(mode.id)
@@ -318,7 +312,7 @@ export async function listCapturedGames(
     client
       .from('games')
       .select(
-        'id, lcu_game_id, started_at, duration_s, source, rated, rule, rule_class_tag, rule_region_blue, rule_region_red, rule_no_draw, gameMode:game_mode, lobbies(lcu_party_id), game_players(player_id, side, r_after)',
+        'id, lcu_game_id, started_at, duration_s, source, rated, rule, rule_class_tag, rule_region_blue, rule_region_red, gameMode:game_mode, lobbies(lcu_party_id), game_players(player_id, side, r_after)',
       )
       .eq('group_id', groupId)
       .order('started_at', { ascending: false })
@@ -355,7 +349,6 @@ export async function listCapturedGames(
           regionBlue: row.rule_region_blue,
           regionRed: row.rule_region_red,
         },
-        noDraw: row.rule_no_draw,
         startedAt: row.started_at,
         ratingsSince,
       }),

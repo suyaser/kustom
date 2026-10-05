@@ -808,20 +808,9 @@ if (stack === null) {
 
     it('a rule game rolled in the group: the rule line on the teams post, and a result post though not rated (M15.6)', async () => {
       // Class wars, Tanks only, pending on the scratch group: its default is not rated.
-      const { data: card, error: cardError } = await db
-        .from('group_modes')
-        .select('version')
-        .eq('group_id', groups.two)
-        .single();
-      if (cardError) throw new Error(cardError.message);
       const pending = await db
         .from('group_modes')
-        .update({
-          pending_rule: 'class',
-          pending_class_tag: 'Tank',
-          rated_override: null,
-          version: card.version + 1,
-        })
+        .update({ pending_rule: 'class', pending_class_tag: 'Tank', rated_override: null })
         .eq('group_id', groups.two);
       if (pending.error) throw new Error(pending.error.message);
 

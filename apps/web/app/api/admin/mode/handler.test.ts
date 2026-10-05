@@ -1,15 +1,16 @@
-import type { ModeState } from '@customs/core';
+import type { ChampionTable, ModeRow, Rng, TransitionContext } from '@customs/core';
 import { setGroupModeResponseSchema } from '@customs/db/schemas';
 import { describe, expect, it } from 'vitest';
 import type { AdminAuthResult } from '@/lib/adminAuth';
 import type { ServiceClient } from '@/lib/supabase';
 import { memoryModeStore } from '@/lib/testing/modeStore';
-import { type ModeRouteDeps, setGroupModeRoute, spinModeRoute } from './handler';
+import { type ModeRouteDeps, setGroupModeRoute } from './handler';
 
 /**
- * `POST /api/admin/mode` and `POST /api/admin/mode/spin` (M15.3) with an in-memory card store: the
- * gate, zod on the body, each write, the answers and the form notices. The database half is
- * `mode.integration.test.ts` and `modeOfTheNight.integration.test.ts`.
+ * `POST /api/admin/mode` (M15.3; every action since M20.7, Spin merged in) with an in-memory card
+ * store: the gate, zod on the body, each action's patch, the `{ state, notice }` answer and the
+ * form notices. The database half is `mode.integration.test.ts` and
+ * `modeOfTheNight.integration.test.ts`.
  */
 
 const GROUP = '00000000-0000-4000-8000-00000000000a';
@@ -29,10 +30,7 @@ const admin: AdminAuthResult = {
 };
 const notAdmin: AdminAuthResult = { ok: false, status: 403, error: 'not an admin of that group' };
 
-/**
- * A client that answers the slug lookup a form post makes, and nothing for every other read
- * (Spin's previous-rule lookups: no live lobby, no rule game tonight).
- */
+/** A client that answers the slug lookup a form post makes, and nothing for every other read. */
 const client = {
   from: (table: string) => {
     const answer = {
@@ -54,20 +52,46 @@ const client = {
 const bumps: { name: string; group: string; kind: string; writesBefore: number }[] = [];
 let current: ReturnType<typeof memoryModeStore> | null = null;
 
-const card = (over: Partial<ModeState> = {}): ModeState => ({
+const REGIONS = ['ionia', 'noxus', 'zaun', 'targon'] as const;
+
+/**
+ * Ten champions in each of ionia, noxus and zaun, three in targon (never drawable); five tanks,
+ * the rest mages: Tanks only is under core's minimum, Mages only is not.
+ */
+const table: ChampionTable = new Map(
+  Array.from({ length: 33 }, (_, i) => [
+    i + 1,
+    {
+      tags: [i < 5 ? ('Tank' as const) : ('Mage' as const)],
+      region: [i < 10 ? 'ionia' : i < 20 ? 'noxus' : i < 30 ? 'zaun' : 'targon'],
+    },
+  ]),
+);
+
+const contextOf =
+  (rng: Rng = () => 0, fearlessPool: readonly number[] = []) =>
+  async (): Promise<TransitionContext> => ({ roster: table, regions: REGIONS, fearlessPool, rng });
+
+const card = (over: Partial<ModeRow> = {}): ModeRow => ({
   standing: 'fearless',
   pending: null,
-  ratedOverride: null,
-  version: 1,
+  rated: null,
   ...over,
 });
 
-function setup(initial: ModeState | null = card(), deps: ModeRouteDeps = {}, auth = admin) {
+function setup(initial: ModeRow | null = card(), deps: ModeRouteDeps = {}, auth = admin) {
   const t = memoryModeStore(initial);
   current = t;
   bumps.length = 0;
-  const options = { getClient: () => client, authorize: async () => auth, store: t.store, ...deps };
-  return { t, mode: setGroupModeRoute(options), spin: spinModeRoute(options) };
+  const options = {
+    getClient: () => client,
+    authorize: async () => auth,
+    store: t.store,
+    context: contextOf(),
+    spinFacts: async () => ({ previous: null, lobbyOpen: false }),
+    ...deps,
+  };
+  return { t, mode: setGroupModeRoute(options) };
 }
 
 const json = (body: unknown) =>
@@ -88,14 +112,16 @@ async function answer(response: Response) {
   return { status: response.status, body: (await response.json()) as Record<string, unknown> };
 }
 
+const noticeOf = (response: Response) => new URL(response.headers.get('location') ?? '').searchParams;
+
 describe('POST /api/admin/mode: the gate and the body', () => {
   it('403 for somebody who is not an admin, and nothing written', async () => {
     const { t, mode } = setup(card(), {}, notAdmin);
-    expect((await mode(json({ groupId: GROUP, mode: 'class:Tank' }))).status).toBe(403);
+    expect((await mode(json({ groupId: GROUP, mode: 'class:Mage' }))).status).toBe(403);
     expect(t.writes).toEqual([]);
   });
 
-  it('400 for an unknown choice, for no action, and for two at once', async () => {
+  it('400 for an unknown choice, for no action, for two at once, and a target without a region action', async () => {
     const { t, mode } = setup();
     for (const body of [
       { groupId: GROUP, mode: 'class:Fighter' },
@@ -103,6 +129,8 @@ describe('POST /api/admin/mode: the gate and the body', () => {
       { groupId: GROUP },
       { groupId: GROUP, mode: 'normal', rated: true },
       { groupId: GROUP, rated: 'maybe' },
+      { groupId: GROUP, side: 'blue' },
+      { groupId: GROUP, rated: true, game: 'this' },
     ]) {
       expect((await mode(json(body))).status).toBe(400);
     }
@@ -110,17 +138,20 @@ describe('POST /api/admin/mode: the gate and the body', () => {
   });
 });
 
-describe('POST /api/admin/mode: the writes', () => {
-  it("M14's standing body answers as before, plus the card", async () => {
-    const { mode } = setup();
+describe('POST /api/admin/mode: each action is one patch of only its fields (M20.7 (1))', () => {
+  it("M14's standing body: the standing mode, the rule and Rated emptied; one { state, notice } answer", async () => {
+    const { t, mode } = setup(card({ pending: { id: 'mirror' }, rated: false }));
     const { status, body } = await answer(await mode(json({ groupId: GROUP, mode: 'normal' })));
     expect(status).toBe(200);
-    expect(setGroupModeResponseSchema.parse(body)).toEqual({
+    const parsed = setGroupModeResponseSchema.parse(body);
+    expect(parsed).toMatchObject({
       ok: true,
-      mode: 'normal',
+      state: { standing: 'normal', pending: null, rated: null, nextRated: true },
+      notice: 'Rule cleared. Back to Normal.',
       changed: true,
-      next: { standing: 'normal', rule: null, rated: true, ratedOverride: null, version: 2 },
+      mode: 'normal',
     });
+    expect(t.writes.map((w) => w.patch)).toEqual([{ standing: 'normal', pending: null, rated: null }]);
   });
 
   it('a repeat standing pick is changed: false and writes nothing', async () => {
@@ -130,56 +161,115 @@ describe('POST /api/admin/mode: the writes', () => {
     expect(t.writes).toEqual([]);
   });
 
-  it('a rule queues the next game, not rated by default, and names the setter', async () => {
-    const { t, mode } = setup();
-    const { body } = await answer(await mode(json({ groupId: GROUP, mode: 'class:Tank' })));
+  it('a rule writes the rule and resets Rated, never the standing mode, and names the setter', async () => {
+    const { t, mode } = setup(card({ rated: true }));
+    const { body } = await answer(await mode(json({ groupId: GROUP, mode: 'class:Mage' })));
     expect(body).toMatchObject({
-      mode: 'fearless',
-      changed: true,
-      next: { standing: 'fearless', rule: 'class:Tank', rated: false, version: 2 },
+      state: { standing: 'fearless', pending: { id: 'class', tag: 'Mage' }, rated: null, nextRated: false },
+      notice: 'Next game: Class wars, mages only. Not rated.',
     });
-    expect(t.writes[0]?.writer).toEqual({ playerId: PLAYER, setsRule: true });
+    expect(t.writes).toEqual([
+      { patch: { pending: { id: 'class', tag: 'Mage' }, rated: null }, writer: { playerId: PLAYER } },
+    ]);
   });
 
-  it('the Rated switch, in any mode, from JSON or a form', async () => {
-    const { t, mode } = setup();
+  it('the Rated switch writes only Rated, from JSON or a form', async () => {
+    const { t, mode } = setup(card({ pending: { id: 'mirror' } }));
     const { body } = await answer(await mode(json({ groupId: GROUP, rated: false })));
-    expect(body).toMatchObject({ next: { rule: null, rated: false, ratedOverride: false } });
+    expect(body).toMatchObject({
+      state: { pending: { id: 'mirror' }, rated: false },
+      notice: 'Next game is not rated.',
+    });
     await mode(form({ groupId: GROUP, rated: 'true' }));
-    expect(t.row()).toMatchObject({ ratedOverride: true, version: 3 });
+    expect(t.writes.map((w) => w.patch)).toEqual([{ rated: false }, { rated: true }]);
+    expect(t.row()).toEqual(card({ pending: { id: 'mirror' }, rated: true }));
   });
 
-  it('a form post goes back with the announcer line', async () => {
+  it('a form post goes back with the notice', async () => {
     const { mode } = setup();
     const response = await mode(form({ groupId: GROUP, mode: 'class:Mage', redirectTo: '/g/crew' }));
     expect(response.status).toBe(303);
-    const location = new URL(response.headers.get('location') ?? '');
-    expect(location.pathname).toBe('/g/crew');
-    expect(location.searchParams.get('notice')).toBe('Next game: Class wars, mages only. Not rated.');
+    expect(new URL(response.headers.get('location') ?? '').pathname).toBe('/g/crew');
+    expect(noticeOf(response).get('notice')).toBe('Next game: Class wars, mages only. Not rated.');
+  });
+});
+
+describe('POST /api/admin/mode: region wars is drawn when it is chosen (M20 D9)', () => {
+  it('choosing it writes the rule and its pair in one update, and the notice names them', async () => {
+    const { t, mode } = setup(card({ standing: 'normal' }));
+    const { body } = await answer(await mode(json({ groupId: GROUP, mode: 'region' })));
+    expect(t.writes).toHaveLength(1);
+    const pending = t.row()?.pending;
+    expect(pending).toMatchObject({ id: 'region' });
+    expect(pending?.id === 'region' && pending.blue !== pending.red).toBe(true);
+    expect(body.notice).toMatch(
+      /^Next game: Region wars\. Blue: (Ionia|Noxus|Zaun) · Red: (Ionia|Noxus|Zaun)\. Not rated\.$/,
+    );
   });
 
-  it('picking the standing mode with a rule pending says the rule was cleared', async () => {
-    const { mode } = setup(card({ pending: { id: 'region' } }));
-    const response = await mode(form({ groupId: GROUP, mode: 'fearless', redirectTo: '/g/crew' }));
-    expect(new URL(response.headers.get('location') ?? '').searchParams.get('notice')).toBe(
-      'Rule cleared. Back to Fearless.',
-    );
+  it('choosing it again keeps the pair (Redraw is the reroll)', async () => {
+    const pair = { id: 'region', blue: 'zaun', red: 'noxus' } as const;
+    const { t, mode } = setup(card({ pending: pair, rated: true }));
+    await mode(json({ groupId: GROUP, mode: 'region' }));
+    expect(t.row()).toMatchObject({ pending: pair, rated: null });
+  });
+
+  it('redraw next: a new pair, never the same unordered pair; only the rule written', async () => {
+    const pair = { id: 'region', blue: 'zaun', red: 'noxus' } as const;
+    for (const r of [0, 0.3, 0.6, 0.99]) {
+      const { t, mode } = setup(card({ pending: pair, rated: true }), { context: contextOf(() => r) });
+      const { status, body } = await answer(await mode(json({ groupId: GROUP, redraw: true, game: 'next' })));
+      expect(status).toBe(200);
+      const next = t.row()?.pending;
+      expect(next?.id).toBe('region');
+      if (next?.id === 'region') expect([next.blue, next.red].sort()).not.toEqual(['noxus', 'zaun']);
+      expect(t.writes.map((w) => Object.keys(w.patch))).toEqual([['pending']]);
+      expect(t.row()?.rated).toBe(true);
+      expect(body.notice).toMatch(/^Next game: \w+ vs \w+\.$/);
+    }
+  });
+
+  it('set side next: the named region, the other side kept', async () => {
+    const { t, mode } = setup(card({ pending: { id: 'region', blue: 'zaun', red: 'noxus' } }));
+    const { body } = await answer(await mode(json({ groupId: GROUP, side: 'blue', region: 'ionia' })));
+    expect(t.row()?.pending).toEqual({ id: 'region', blue: 'ionia', red: 'noxus' });
+    expect(body.notice).toBe('Next game: Ionia vs Noxus.');
+  });
+
+  it("409 with M20.1's words: same region, a region under 8 open, no region wars pending", async () => {
+    const pending = { id: 'region', blue: 'zaun', red: 'noxus' } as const;
+    const cases: [ModeRow, Record<string, unknown>, string][] = [
+      [card({ pending }), { side: 'blue', region: 'noxus' }, 'Pick two different regions.'],
+      [
+        card({ pending }),
+        { side: 'red', region: 'targon' },
+        'That region has too few champions open tonight.',
+      ],
+      [card(), { redraw: true }, 'Region wars is not on for that game.'],
+    ];
+    for (const [row, body, words] of cases) {
+      const { t, mode } = setup(row);
+      expect(await answer(await mode(json({ groupId: GROUP, ...body })))).toEqual({
+        status: 409,
+        body: { ok: false, error: words },
+      });
+      expect(t.writes).toEqual([]);
+    }
+  });
+
+  it('a Fearless night counts the bans: a region the pool emptied is short', async () => {
+    const bans = Array.from({ length: 5 }, (_, i) => i + 1); // five Ionia champions banned
+    const { mode } = setup(card({ pending: { id: 'region', blue: 'zaun', red: 'noxus' } }), {
+      context: contextOf(() => 0, bans),
+    });
+    expect((await mode(json({ groupId: GROUP, side: 'blue', region: 'ionia' }))).status).toBe(409);
   });
 });
 
 describe('POST /api/admin/mode: a rule with too few champions open (QA fix 2026-10-04)', () => {
-  // Five tanks, thirty mages: Tanks only is under core's minimum, Mages only is not.
-  const table = new Map(
-    Array.from({ length: 35 }, (_, i) => [
-      i + 1,
-      { tags: [i < 5 ? ('Tank' as const) : ('Mage' as const)], region: [i < 20 ? 'ionia' : 'noxus'] },
-    ]),
-  );
-
   it('409 with the sentence, nothing written; a playable rule still queues', async () => {
-    const { t, mode } = setup(card({ standing: 'normal' }), { table });
-    const refused = await answer(await mode(json({ groupId: GROUP, mode: 'class:Tank' })));
-    expect(refused).toEqual({
+    const { t, mode } = setup(card({ standing: 'normal' }));
+    expect(await answer(await mode(json({ groupId: GROUP, mode: 'class:Tank' })))).toEqual({
       status: 409,
       body: { ok: false, error: 'That rule has too few champions open tonight.' },
     });
@@ -188,86 +278,82 @@ describe('POST /api/admin/mode: a rule with too few champions open (QA fix 2026-
   });
 
   it('a no-JS pick goes back with the sentence as the error', async () => {
-    const { t, mode } = setup(card({ standing: 'normal' }), { table });
+    const { t, mode } = setup(card({ standing: 'normal' }));
     const response = await mode(form({ groupId: GROUP, mode: 'class:Tank', redirectTo: '/g/crew' }));
     expect(response.status).toBe(303);
-    expect(new URL(response.headers.get('location') ?? '').searchParams.get('error')).toBe(
-      'That rule has too few champions open tonight.',
-    );
+    expect(noticeOf(response).get('error')).toBe('That rule has too few champions open tonight.');
     expect(t.writes).toEqual([]);
   });
 
-  it('counts the bans the check is given, and the rule already pending stays pickable', async () => {
-    const asked: string[] = [];
-    const playable = async (state: ModeState) => {
-      asked.push(state.standing);
-      return false;
-    };
-    const { t, mode } = setup(card({ pending: { id: 'class', tag: 'Mage' } }), { playable });
-    expect((await mode(json({ groupId: GROUP, mode: 'region' }))).status).toBe(409);
-    expect(asked).toEqual(['fearless']);
-    expect((await mode(json({ groupId: GROUP, mode: 'class:Mage' }))).status).toBe(200);
-    expect(t.writes).toHaveLength(1);
-    // Standing picks and the switch are never checked.
-    expect((await mode(json({ groupId: GROUP, mode: 'normal' }))).status).toBe(200);
-    expect((await mode(json({ groupId: GROUP, rated: false }))).status).toBe(200);
-    expect(asked).toEqual(['fearless']);
+  it('the rule already pending stays pickable', async () => {
+    const { mode } = setup(card({ pending: { id: 'class', tag: 'Tank' } }));
+    expect((await mode(json({ groupId: GROUP, mode: 'class:Tank' }))).status).toBe(200);
   });
 });
 
-describe('Spin: POST /api/admin/mode { spin: true } and POST /api/admin/mode/spin', () => {
-  it('both write the server pick and answer it', async () => {
-    const draws: ModeState[] = [];
-    const deps: ModeRouteDeps = {
-      draw: async (state) => {
-        draws.push(state);
-        return { id: 'class', tag: 'Assassin' };
-      },
-    };
-    const one = setup(card(), deps);
-    const viaMode = await answer(await one.mode(json({ groupId: GROUP, spin: true })));
-    expect(viaMode.body).toMatchObject({
-      spun: 'class:Assassin',
-      next: { rule: 'class:Assassin', rated: false },
-    });
+describe('Spin: POST /api/admin/mode { spin: true } (the spin route merged in, M20.7)', () => {
+  it('writes the server pick and answers it', async () => {
+    const { t, mode } = setup(card(), { context: contextOf(() => 0.1) });
+    const { status, body } = await answer(await mode(json({ groupId: GROUP, spin: true })));
+    expect(status).toBe(200);
+    expect(body.spun).toMatch(/^(class:Mage|region|mirror)$/);
+    expect(t.writes).toHaveLength(1);
+  });
 
-    const two = setup(card(), deps);
-    const viaSpin = await answer(await two.spin(json({ groupId: GROUP })));
-    expect(viaSpin.body).toEqual(viaMode.body);
-    expect(draws).toHaveLength(2);
+  it('landing on region wars writes its pair in the same update (seeded) and names it', async () => {
+    for (const r of [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.99]) {
+      const { t, mode } = setup(card(), { context: contextOf(() => r) });
+      const { body } = await answer(await mode(json({ groupId: GROUP, spin: true })));
+      if (body.spun !== 'region') continue;
+      expect(t.writes).toHaveLength(1);
+      const pending = t.row()?.pending;
+      expect(pending?.id === 'region' && pending.blue !== pending.red).toBe(true);
+      expect(body.notice).toMatch(/^Spin says: Region wars\. Blue: \w+ · Red: \w+\.$/);
+    }
   });
 
   it('a no-JS Spin is a form post that comes back with the result', async () => {
-    const { spin } = setup(card(), { draw: async () => ({ id: 'region' }) });
-    const response = await spin(form({ groupId: GROUP, redirectTo: '/g/crew' }));
-    expect(new URL(response.headers.get('location') ?? '').searchParams.get('notice')).toBe(
-      'Spin says: Region wars.',
-    );
+    const { mode } = setup(card(), { spinFacts: async () => ({ previous: null, lobbyOpen: true }) });
+    const response = await mode(form({ groupId: GROUP, spin: 'true', redirectTo: '/g/crew' }));
+    expect(response.status).toBe(303);
+    expect(noticeOf(response).get('notice')).toMatch(/^Spin says: /);
+  });
+
+  it('never mirror while a lobby is open, never the previous rule', async () => {
+    for (const r of [0, 0.2, 0.5, 0.7, 0.99]) {
+      const { mode } = setup(card({ standing: 'normal' }), {
+        context: contextOf(() => r),
+        spinFacts: async () => ({ previous: { id: 'class', tag: 'Mage' }, lobbyOpen: true }),
+      });
+      const { status, body } = await answer(await mode(json({ groupId: GROUP, spin: true })));
+      expect(status).toBe(200);
+      expect(body.spun).toBe('region');
+    }
   });
 
   it('409 when nothing is left to draw, and nothing written', async () => {
-    const { t, spin } = setup(card(), { draw: async () => null });
-    expect((await spin(json({ groupId: GROUP }))).status).toBe(409);
+    const { t, mode } = setup(card(), {
+      spinFacts: async () => ({ previous: { id: 'region', blue: 'ionia', red: 'noxus' }, lobbyOpen: true }),
+      context: async () => ({ roster: new Map(), regions: REGIONS, fearlessPool: [], rng: () => 0 }),
+    });
+    expect((await mode(json({ groupId: GROUP, spin: true }))).status).toBe(409);
     expect(t.writes).toEqual([]);
   });
+});
 
-  it('the default draw may land on mirror since M17.17 (core SPIN_FAMILIES), whatever the RNG', async () => {
-    for (const r of [0, 0.2, 0.5, 0.7, 0.99]) {
-      const { spin } = setup(card({ standing: 'normal' }), {
-        rng: () => r,
-        timeZone: 'Africa/Cairo',
-        table: new Map(
-          Array.from({ length: 40 }, (_, i) => [
-            i + 1,
-            { tags: ['Tank', 'Mage'], region: [i < 20 ? 'ionia' : 'noxus'] },
-          ]),
-        ),
-      });
-      // `spinDraw` reads the previous rule from the database: this client answers nothing.
-      const { status, body } = await answer(await spin(json({ groupId: GROUP })));
-      expect(status).toBe(200);
-      expect(body.spun).toMatch(/^(class:|region$|mirror$)/);
-    }
+describe('two admins: last write wins, an action never overwrites fields it does not set (M20 D7)', () => {
+  it('a Rated flip landing between a pick and its write keeps both', async () => {
+    const { t, mode } = setup(card());
+    t.beforeNextWrite(() => t.set(card({ rated: false })));
+    await mode(json({ groupId: GROUP, mode: 'mirror' }));
+    // The pick resets Rated (its own field): the later write wins on the field both touched.
+    expect(t.row()).toEqual(card({ pending: { id: 'mirror' }, rated: null }));
+
+    const two = setup(card());
+    two.t.beforeNextWrite(() => two.t.set(card({ pending: { id: 'class', tag: 'Mage' } })));
+    await two.mode(json({ groupId: GROUP, rated: true }));
+    // A Rated flip never touches the rule another admin set meanwhile.
+    expect(two.t.row()).toEqual(card({ pending: { id: 'class', tag: 'Mage' }, rated: true }));
   });
 });
 
@@ -278,13 +364,17 @@ describe('the live signal (M19.9)', () => {
     expect(bumps).toEqual([{ name: 'bump_group_live', group: GROUP, kind: 'mode', writesBefore: 1 }]);
   });
 
-  it('Rated and Spin bump the same way', async () => {
+  it('Rated, Spin and a region action bump the same way', async () => {
     const rated = setup();
     expect((await rated.mode(json({ groupId: GROUP, rated: false }))).status).toBe(200);
     expect(bumps).toEqual([{ name: 'bump_group_live', group: GROUP, kind: 'mode', writesBefore: 1 }]);
 
-    const spun = setup(card(), { draw: async () => ({ id: 'region' }) });
-    expect((await spun.spin(json({ groupId: GROUP }))).status).toBe(200);
+    const spun = setup();
+    expect((await spun.mode(json({ groupId: GROUP, spin: true }))).status).toBe(200);
+    expect(bumps).toEqual([{ name: 'bump_group_live', group: GROUP, kind: 'mode', writesBefore: 1 }]);
+
+    const redrawn = setup(card({ pending: { id: 'region', blue: 'zaun', red: 'noxus' } }));
+    expect((await redrawn.mode(json({ groupId: GROUP, redraw: true }))).status).toBe(200);
     expect(bumps).toEqual([{ name: 'bump_group_live', group: GROUP, kind: 'mode', writesBefore: 1 }]);
   });
 
@@ -293,8 +383,8 @@ describe('the live signal (M19.9)', () => {
     await same.mode(json({ groupId: GROUP, mode: 'fearless' }));
     expect(bumps).toEqual([]);
 
-    const nothing = setup(card(), { draw: async () => null });
-    expect((await nothing.spin(json({ groupId: GROUP }))).status).toBe(409);
+    const refused = setup(card({ standing: 'normal' }));
+    expect((await refused.mode(json({ groupId: GROUP, mode: 'class:Tank' }))).status).toBe(409);
     expect(bumps).toEqual([]);
 
     const outsider = setup(card(), {}, notAdmin);

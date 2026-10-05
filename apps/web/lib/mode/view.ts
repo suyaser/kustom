@@ -80,7 +80,13 @@ export function normalNoteFactsOf(snapshot: TonightSnapshot): NormalNoteFacts {
     nightStart: snapshot.nightStart,
     lastGameAt: snapshot.lastGameAt ?? null,
     lastResultAt,
-    finishedNow: snapshot.lobby?.status === 'finished' || snapshot.lobby?.status === 'in_game',
+    // M20.7: Roll moves the pending rule onto the lock and empties the row, which moves
+    // `updated_at`; while the teams are up the card is this game's lock, so a Roll is never read
+    // as an admin switching to Normal. M20.8 replaces this note's `since` with an admin write time.
+    finishedNow:
+      snapshot.lobby?.status === 'finished' ||
+      snapshot.lobby?.status === 'in_game' ||
+      snapshot.lobby?.status === 'balanced',
   };
 }
 

@@ -139,101 +139,181 @@ const formBoolean = z.preprocess((value) => {
 }, z.boolean());
 
 // ---------------------------------------------------------------------------
-// POST /api/admin/mode (M14.29, extended by M15.3) and POST /api/admin/mode/spin
+// POST /api/admin/mode (M14.29, M15.3; one route for every action since M20.7)
 // ---------------------------------------------------------------------------
+
+/** Which game a region action changes: the row (`next`) or the balanced lobby's lock (`this`). */
+export const MODE_GAMES = ['next', 'this'] as const;
+export const modeGameSchema = z.enum(MODE_GAMES);
+export type ModeGame = z.infer<typeof modeGameSchema>;
+
+const formTrue = z.preprocess(
+  (value) => (value === 'true' || value === 'on' || value === '1' ? true : value),
+  z.literal(true),
+);
 
 /**
  * One card write, the **target state**, never a toggle (M14.29): exactly one of
  *
- * - `mode`: a standing mode (sets it, clears a pending rule, resets the Rated switch) or a rule
- *   choice (the next game's rule; the standing mode stays; the switch resets to the rule's default);
+ * - `mode`: a standing mode (sets it, empties the pending rule and the Rated switch) or a rule
+ *   choice (the next game's rule; resets the switch). Region wars draws its pair in the same write
+ *   (M20 D9); choosing it while it is pending keeps the pair;
  * - `rated`: the Rated switch for the next game, either way, in any mode (R9);
- * - `spin: true`: the server picks the next game's rule (R3); `/api/admin/mode/spin` is the same.
+ * - `spin: true`: the server picks the next game's rule (R3); region wars with its pair;
+ * - `redraw: true`: a new random region pair, never the same unordered pair (M20 D9);
+ * - `side` + `region`: one side's region; the other side keeps its own.
  *
- * Every write that changes something moves `group_modes.version` (the compare-and-clear token).
- * M14's body `{ groupId, mode: 'normal' | 'fearless' }` parses unchanged. Gated like every
- * `/api/admin/*` route. `redirectTo` is where an HTML form post goes back to (a path on this site).
+ * `game` names the target of `redraw` and `side` (default `next`): `next` is the row, `this` the
+ * balanced lobby's lock (refused once the game has started). M20.7: each action is one update of
+ * only the fields it sets (last write wins, M20 D7); `/api/admin/mode/spin` is gone (its no-JS form
+ * posts here with `spin=true`). M14's body `{ groupId, mode }` parses unchanged. `redirectTo` is
+ * where an HTML form post goes back to (a path on this site).
  */
 export const setGroupModeRequestSchema = z
   .object({
     groupId: groupIdSchema,
     mode: modeChoiceSchema.optional(),
     rated: formBoolean.optional(),
-    spin: z
-      .preprocess(
-        (value) => (value === 'true' || value === 'on' || value === '1' ? true : value),
-        z.literal(true),
-      )
-      .optional(),
+    spin: formTrue.optional(),
+    redraw: formTrue.optional(),
+    side: z.enum(['blue', 'red']).optional(),
+    region: regionIdSchema.optional(),
+    game: modeGameSchema.optional(),
     redirectTo: z.string().optional(),
   })
   .refine(
     (body) =>
-      [body.mode !== undefined, body.rated !== undefined, body.spin === true].filter(Boolean).length === 1,
-    { message: 'name exactly one of mode, rated or spin' },
-  );
+      [
+        body.mode !== undefined,
+        body.rated !== undefined,
+        body.spin === true,
+        body.redraw === true,
+        body.side !== undefined,
+      ].filter(Boolean).length === 1,
+    { message: 'name exactly one of mode, rated, spin, redraw or side' },
+  )
+  .refine((body) => (body.side !== undefined) === (body.region !== undefined), {
+    message: 'side and region go together',
+  })
+  .refine((body) => body.game === undefined || body.redraw === true || body.side !== undefined, {
+    message: 'game names the target of redraw or side only',
+  });
 
 export type SetGroupModeRequest = z.infer<typeof setGroupModeRequestSchema>;
 
-/** `POST /api/admin/mode/spin`: the group, and where a form post goes back to. */
-export const spinModeRequestSchema = z.object({
-  groupId: groupIdSchema,
-  redirectTo: z.string().optional(),
+/** A pending rule as JSON: region wars always with its pair (core's `PendingRule`). */
+export const pendingRuleSchema = z.discriminatedUnion('id', [
+  z.object({ id: z.literal('class'), tag: classTagSchema }),
+  z.object({ id: z.literal('region'), blue: regionIdSchema, red: regionIdSchema }),
+  z.object({ id: z.literal('mirror') }),
+]);
+
+/** A locked mode as JSON: the rule, or the standing mode with none (core's `Mode`). */
+export const lockedModeSchema = z.union([z.object({ id: groupModeSchema }), pendingRuleSchema]);
+
+/** The group's mode row after a write (core's `ModeRow`): the next game. */
+export const modeRowStateSchema = z.object({
+  standing: groupModeSchema,
+  pending: pendingRuleSchema.nullable(),
+  /** The Rated switch; null = the next game's mode default. */
+  rated: z.boolean().nullable(),
+  /** Whether the next game is rated (core's `nextRated`). */
+  nextRated: z.boolean(),
+  /** `group_modes.updated_at` after the write; null for a group with no row. */
+  updatedAt: z.string().nullable(),
 });
 
-export type SpinModeRequest = z.infer<typeof spinModeRequestSchema>;
+export type ModeRowState = z.infer<typeof modeRowStateSchema>;
 
-/** What the card says the next game is, after a write (core's `nextGame` plus the token). */
-export const nextGameSchema = z.object({
-  /** The standing mode. */
+/** A lobby's lock (core's `ModeLock`): this game. */
+export const modeLockStateSchema = z.object({
+  lobbyId: z.guid(),
   standing: groupModeSchema,
-  /** The pending rule, or null for a plain standing-mode game. */
+  mode: lockedModeSchema,
+  /** The switch as Roll moved it; null = the locked mode's default. */
+  rated: z.boolean().nullable(),
+  /** Whether this game is rated (core's `lockRated`). */
+  effectiveRated: z.boolean(),
+});
+
+export type ModeLockState = z.infer<typeof modeLockStateSchema>;
+
+/**
+ * @deprecated M20.7 keeps it for the M15/M19.13 card client until M20.8 rewrites it on
+ * {@link modeRowStateSchema}. `version` is `Date.parse(group_modes.updated_at)`: an ordering for
+ * the client store only (no write reads it; the column is gone).
+ */
+export const nextGameSchema = z.object({
+  standing: groupModeSchema,
   rule: ruleChoiceSchema.nullable(),
-  /** Whether the next game is rated: the switch, else the effective mode's default. */
   rated: z.boolean(),
-  /** The switch itself; null = the default. */
   ratedOverride: z.boolean().nullable(),
   version: z.number().int().nonnegative(),
 });
 
 export type NextGame = z.infer<typeof nextGameSchema>;
 
+/**
+ * The answer to every action (M20.7): `{ state, notice }`, the row after the write and the route's
+ * one line (the card shows it, never recomputes it), plus `thisGame` when the action changed the
+ * lock, and Spin's pick. `mode` and `next` are the pre-M20.8 client's fields, deleted with it.
+ */
 export const setGroupModeResponseSchema = z.object({
   ok: z.literal(true),
-  /** The group's standing mode now (M14.29's field, unchanged). */
-  mode: groupModeSchema,
-  /** False when nothing was written (a repeat of the current state). */
+  state: modeRowStateSchema,
+  notice: z.string().min(1),
+  /** False when nothing was written. */
   changed: z.boolean(),
-  /** The card after the write (M15.3). Optional so an M14 answer still parses. */
-  next: nextGameSchema.optional(),
+  thisGame: modeLockStateSchema.optional(),
   /** Spin's pick, on a Spin answer only. */
   spun: ruleChoiceSchema.optional(),
+  /** @deprecated M20.8: read `state.standing`. */
+  mode: groupModeSchema,
+  /** @deprecated M20.8: read `state`. */
+  next: nextGameSchema.optional(),
 });
 
 export type SetGroupModeResponse = z.infer<typeof setGroupModeResponseSchema>;
+
+/**
+ * @deprecated M20.8: the fields of the answer the pre-M20.8 card client reads (M15.3's answer).
+ * {@link setGroupModeResponseSchema} is a superset, so this parses every M20.7 answer; M20.8
+ * deletes it with the client's `next` reads.
+ */
+export const legacyModeAnswerSchema = z.object({
+  ok: z.literal(true),
+  mode: groupModeSchema,
+  changed: z.boolean(),
+  next: nextGameSchema.optional(),
+  spun: ruleChoiceSchema.optional(),
+});
 
 // ---------------------------------------------------------------------------
 // Rows as anon reads them (Tonight, and its Realtime events)
 // ---------------------------------------------------------------------------
 
 /**
- * A `group_modes` row as anon may read it since `0032` (every column but `set_by` and
- * `pending_set_by`), and as a Realtime event carries it. A value from a newer deployment fails the
- * parse; the caller falls back (never a 500).
+ * A `group_modes` row as anon may read it (every column but `set_by` and `pending_set_by`), and as
+ * a Realtime event carries it. M20.7 (`0047`): no `version`; the pending pair. A value from a newer
+ * deployment fails the parse; the caller falls back (never a 500).
  */
 export const groupModeRowSchema = z.object({
   group_id: groupIdSchema,
   mode: groupModeSchema,
   pending_rule: ruleIdSchema.nullable(),
   pending_class_tag: classTagSchema.nullable(),
+  pending_region_blue: regionIdSchema.nullable(),
+  pending_region_red: regionIdSchema.nullable(),
   rated_override: z.boolean().nullable(),
-  version: z.number().int().nonnegative(),
   updated_at: z.string(),
 });
 
 export type GroupModeRow = z.infer<typeof groupModeRowSchema>;
 
-/** The lobby's lock columns (`0032`), all null for no lock. Public: Tonight shows the locked rule. */
+/**
+ * The lobby's lock columns (`0032`, `0047`), all null for no lock. A lock exists exactly when
+ * `lock_mode` is set; `lock_rated` null is the locked mode's default. Public: Tonight shows it.
+ */
 export const lobbyLockRowSchema = z.object({
   lock_mode: groupModeSchema.nullable(),
   lock_rule: ruleIdSchema.nullable(),
@@ -241,7 +321,6 @@ export const lobbyLockRowSchema = z.object({
   lock_region_blue: regionIdSchema.nullable(),
   lock_region_red: regionIdSchema.nullable(),
   lock_rated: z.boolean().nullable(),
-  lock_version: z.number().int().nonnegative().nullable(),
   locked_at: z.string().nullable(),
 });
 

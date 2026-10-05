@@ -12,7 +12,7 @@ import type { LocalStack } from './localStack';
 
 /**
  * Tests only: one fixture night of the mode of the night (M15.8, shared by M15.10 and M15.11), on
- * the local stack, through the real route handlers: `/api/admin/mode` and its Spin, the admin Roll
+ * the local stack, through the real route handlers: `/api/admin/mode` (Spin included), the admin Roll
  * and Reroll, and the companion's lobby and game posts under a bearer token. A scratch group of
  * ten fresh players (the first is the owner, the host and the token's player), and a webhook that
  * is a real HTTP server in the process, so every Discord post is captured as sent.
@@ -105,7 +105,7 @@ export async function modeNight(stack: LocalStack, key: string) {
   process.env.CUSTOMS_NIGHT_TZ = 'Africa/Cairo';
 
   // The roll handler import registers the Discord and command-queue listeners; the game route too.
-  const { setGroupModeRoute, spinModeRoute } = await import('@/app/api/admin/mode/handler');
+  const { setGroupModeRoute } = await import('@/app/api/admin/mode/handler');
   const { rollRoute } = await import('@/app/api/admin/lobbies/[lobbyId]/roll/handler');
   const { rerollRoute } = await import('@/app/api/admin/lobbies/[lobbyId]/reroll/handler');
   const { POST: postLobby } = await import('@/app/api/companion/lobby/route');
@@ -170,17 +170,25 @@ export async function modeNight(stack: LocalStack, key: string) {
       body: JSON.stringify(body),
     });
 
-  async function card(body: Record<string, unknown>) {
-    const response = await setGroupModeRoute(adminOptions)(
-      jsonRequest('/api/admin/mode', { groupId: group.id, ...body }),
-    );
-    expect(response.status).toBe(200);
-    return (await response.json()) as Record<string, unknown>;
+  /** One card action; `rng` pins region wars' draw (M20.7: drawn when it is chosen). */
+  async function card(body: Record<string, unknown>, rng?: Rng) {
+    const { status, json } = await cardAnswer(body, rng);
+    expect(status, JSON.stringify(json)).toBe(200);
+    return json;
   }
 
+  /** One card action that may be refused: the status and the body. */
+  async function cardAnswer(body: Record<string, unknown>, rng?: Rng) {
+    const response = await setGroupModeRoute({ ...adminOptions, ...(rng === undefined ? {} : { rng }) })(
+      jsonRequest('/api/admin/mode', { groupId: group.id, ...body }),
+    );
+    return { status: response.status, json: (await response.json()) as Record<string, unknown> };
+  }
+
+  /** Spin (M20.7: the one mode route with `spin: true`); `rng` pins the pick and a region pair. */
   async function spin(rng: Rng) {
-    const response = await spinModeRoute({ ...adminOptions, rng })(
-      jsonRequest('/api/admin/mode/spin', { groupId: group.id }),
+    const response = await setGroupModeRoute({ ...adminOptions, rng })(
+      jsonRequest('/api/admin/mode', { groupId: group.id, spin: true }),
     );
     return { status: response.status, json: (await response.json()) as Record<string, unknown> };
   }
@@ -188,7 +196,9 @@ export async function modeNight(stack: LocalStack, key: string) {
   async function cardRow() {
     const { data, error } = await db
       .from('group_modes')
-      .select('mode, pending_rule, pending_class_tag, rated_override, version')
+      .select(
+        'mode, pending_rule, pending_class_tag, pending_region_blue, pending_region_red, rated_override, updated_at',
+      )
       .eq('group_id', group.id)
       .single();
     if (error) throw new Error(error.message);
@@ -264,7 +274,7 @@ export async function modeNight(stack: LocalStack, key: string) {
     const { data, error } = await db
       .from('lobbies')
       .select(
-        'status, lock_mode, lock_rule, lock_class_tag, lock_region_blue, lock_region_red, lock_rated, lock_version',
+        'status, lock_mode, lock_rule, lock_class_tag, lock_region_blue, lock_region_red, lock_rated, locked_at',
       )
       .eq('id', lobbyId)
       .single();
@@ -468,6 +478,7 @@ export async function modeNight(stack: LocalStack, key: string) {
       state.posts = [];
     },
     card,
+    cardAnswer,
     spin,
     cardRow,
     companionLobby,
@@ -493,10 +504,10 @@ export async function modeNight(stack: LocalStack, key: string) {
   };
 }
 
-/** Skip unless the local stack is up and on `0032` (the lock columns). */
+/** Skip unless the local stack is up and on `0047` (the one-row card: the pending pair). */
 export async function stackWithModes(stack: LocalStack | null): Promise<LocalStack | null> {
   if (stack === null) return null;
   const probe = createClient<Database>(stack.url, stack.serviceRoleKey, { auth: { persistSession: false } });
-  const { error } = await probe.from('lobbies').select('lock_mode').limit(1);
+  const { error } = await probe.from('group_modes').select('pending_region_blue').limit(1);
   return error === null ? stack : null;
 }

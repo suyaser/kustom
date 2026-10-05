@@ -130,6 +130,12 @@ export interface RecordInput {
   lock: ModeLock | null;
   /** `false` for a backfilled game: it takes the standing mode at its default and never touches the row. */
   live: boolean;
+  /**
+   * An admin wrote the row after the lock was taken (the server compares `group_modes.updated_at`
+   * with `lobbies.locked_at`). A remake or an ARAM then hands nothing back: see {@link handBack}.
+   * Absent reads as false.
+   */
+  rowTouchedAfterLock?: boolean;
 }
 
 export interface RecordStamp {
@@ -284,8 +290,14 @@ export function take(row: ModeRow, context: TransitionContext): TakeResult {
  * still the lock's (or none, the lock's going back with it). A newer admin choice always wins, and a
  * newer pick reset Rated to its own default. Twice is the same as once. (On the no-draw path the
  * row kept its rule and Rated, so there is nothing to hand back.)
+ *
+ * **An admin write after the lock wins outright** (M20.7 review, the lead's decision): with
+ * `rowTouchedAfterLock` nothing is handed back, so picking Normal after Roll on Tanks keeps Normal
+ * when the teams come down. Any admin write after Roll counts (a Rated flip too): the admin touched
+ * the next game, and their row stands. Roll's own empty-out is not an admin write.
  */
-export function handBack(row: ModeRow, lock: ModeLock): RowPatch {
+export function handBack(row: ModeRow, lock: ModeLock, rowTouchedAfterLock: boolean): RowPatch {
+  if (rowTouchedAfterLock) return {};
   const patch: RowPatch = {};
   const rule = ruleOf(lock.mode);
   if (row.pending === null && rule !== null) patch.pending = lock.mode as PendingRule;
@@ -330,7 +342,7 @@ export function recordGame(row: ModeRow, game: RecordInput): RecordResult {
         rated: rift && lockRated(lock),
         checked: rift && isRule,
       },
-      patch: rift ? {} : handBack(row, lock),
+      patch: rift ? {} : handBack(row, lock, game.rowTouchedAfterLock === true),
     };
   }
   if (!rift) {

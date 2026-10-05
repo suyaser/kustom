@@ -58,7 +58,7 @@ export interface TeamsModeInput {
    */
   standing?: StandingModeId | undefined;
   /**
-   * M15.17 (`lobbies.lock_no_draw`): region wars was picked and could not be drawn at Roll, so
+   * M15.17, M20.7 (no column since 0048; derived in `loadTeamsMode`): region wars was picked and could not be drawn at Roll, so
    * the game is the standing mode. Absent reads as false.
    */
   noDraw?: boolean | undefined;

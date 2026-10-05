@@ -1,4 +1,4 @@
-import type { RecordedGame, RecordedGameKind } from '@customs/core';
+import type { RecordedGameKind } from '@customs/core';
 import {
   type CompanionGameEogPayload,
   type CompanionGameEogPayloadWithWinner,
@@ -10,9 +10,9 @@ import {
 import { invalidateGroup } from '../cache/tags';
 import { MIN_RATED_DURATION_S } from '../lobbyRules';
 import { championTable } from '../mode/champions';
-import { lockLobbyAtStart } from '../mode/lock';
-import { recordedGame, stampColumns } from '../mode/record';
-import { supabaseModeStore } from '../mode/state';
+import { isPlayableStatus, lockLobbyAtStart } from '../mode/lock';
+import { type ModeRecord, stampColumns } from '../mode/record';
+import { readModeRow } from '../mode/state';
 import { gameFactsInsert, writeGameFacts } from '../stats/gameFacts';
 import { mergeDraftBans, rawFactsFromUnknown } from '../stats/rawFacts';
 import type { ServiceClient } from '../supabase';
@@ -89,10 +89,10 @@ export interface GameIngestResult {
   /** Rows in `game_players` for this game after the write. */
   participants: number;
   /**
-   * The game as the mode lifecycle sees it (M15.3): its kind and its lobby's lock at Roll, for the
-   * compare-and-clear the route runs after the fold (`clearAfterRecord`).
+   * The game as the card sees it (M20.7): its kind, its lobby's lock, whether it is live, and the
+   * row its stamp read, for the write the route runs after the fold (`applyModeRecord`).
    */
-  modeRecord: RecordedGame;
+  modeRecord: ModeRecord;
   /**
    * True when this post wrote any row: the game, a `game_players` row, merged bans, or a refreshed
    * Riot ID. A second companion's identical block writes nothing (M19.9: no `group_live` bump).
@@ -161,15 +161,16 @@ export async function ingestEogGame(
     }
   }
 
-  // The mode stamp (M15.3, R2): the lobby's lock taken at Roll, not the card at record time, so a
-  // mid-game switch never changes the game being played. A live lobby with no lock (hand-made
-  // teams: never rolled, or the rolled teams came down) took one when the game started, or takes
-  // it here when no start was heard (owner bug 2026-10-04: Rated off was lost). Only a game with
-  // no lobby, or one from a finished or dropped lobby with no lock, takes the standing mode at its
-  // default. Computed on every post; a duplicate's insert is ignored, so the stored stamp is the
-  // first write's.
+  // The mode stamp (M15.3, R2; M20.7 core `recordGame`): the lobby's lock, not the card at record
+  // time, so a mid-game switch never changes the game being played. A live lobby with no lock
+  // (hand-made teams: never rolled, or the rolled teams came down) took one when the game started,
+  // or takes it here when no start was heard (decision row 2026-10-05, "Rolling is a suggestion").
+  // A live game with no lobby plays the pending state (core's no-lock Rift); a backfill, or a game
+  // from a finished or dropped lobby with no lock, takes the standing mode at its default and
+  // touches nothing. Computed on every post; a duplicate's insert is ignored, so the stored stamp
+  // is the first write's.
   const kind = recordedKind(payload);
-  const lock =
+  const stored =
     lobby === null
       ? null
       : await lockLobbyAtStart(client, {
@@ -178,10 +179,20 @@ export async function ingestEogGame(
           status: lobby.status,
           now: new Date(),
         });
-  const modeColumns = stampColumns({
+  const read = await readModeRow(client, groupId);
+  const modeRecord: ModeRecord = {
     kind,
-    lock,
-    state: (await supabaseModeStore(client).read(groupId)).state,
+    lock: stored?.lock ?? null,
+    // Core reads `live: false` as a backfill (the standing default, whatever the lock): a late
+    // block from a dropped lobby with a lock is live and stamps from that lock.
+    live:
+      payload.source !== 'backfill' && (lobby === null || isPlayableStatus(lobby.status) || stored !== null),
+    row: read.row,
+    rowUpdatedAt: read.updatedAt,
+    lockedAt: stored?.lockedAt ?? null,
+  };
+  const modeColumns = stampColumns({
+    ...modeRecord,
     seats: payload.participants.map((participant) => ({
       side: participant.side,
       championId: participant.championId,
@@ -246,7 +257,7 @@ export async function ingestEogGame(
     created,
     foreignDuplicate,
     participants: await countGamePlayers(client, game.id),
-    modeRecord: recordedGame(kind, lock),
+    modeRecord,
     wrote,
   };
 }

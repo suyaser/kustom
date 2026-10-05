@@ -42,6 +42,11 @@ export const rollResponseSchema = z.object({
    * against the same roster — the split already up is answered, nothing moved, nothing posted.
    */
   outcome: z.enum(['rolled', 'already_rolled']),
+  /**
+   * M20.7 (M20 D11): Roll found the shown region pair short after the bans and drew a fresh one:
+   * `Targon vs Zaun ran short after the bans, so Roll drew Shurima vs Zaun.` Absent otherwise.
+   */
+  modeNotice: z.string().min(1).optional(),
 });
 
 export type RollResponse = z.infer<typeof rollResponseSchema>;

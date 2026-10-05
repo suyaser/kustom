@@ -1,4 +1,4 @@
-import { isSettling } from '@customs/core';
+import { isSettling, lockRated } from '@customs/core';
 import { isFearlessMode } from '@customs/db/schemas';
 import { boardSlotLine, WINDOW_LABELS } from '../board/copy';
 import { loadBoard } from '../board/load';
@@ -11,6 +11,7 @@ import type { GameFinishedEvent, LobbyBalancedEvent, LobbyHook, LobbyStartedEven
 import { compareForSitOut, type PoolMember, planSeats } from '../ingest/selection';
 import { loadGroupMode } from '../mode/load';
 import { readLobbyLock } from '../mode/lock';
+import { readModeRow } from '../mode/state';
 import { type ClosedWindow, civilDayKey, DEFAULT_NIGHT_TIME_ZONE } from '../night';
 import { loadWeekNotes, weekFromParam } from '../og/weekNotesLoad';
 import { RECEIPT_ANCHOR } from '../receipt/copy';
@@ -181,22 +182,50 @@ function fearlessUrl(origin: string | null | undefined, slug: string | null): st
  * The lobby's mode lock as the teams post's rule line needs it (M15.6), or `null` when the lobby
  * has none (a balance with no Roll) or the read fails: the post goes out without the line rather
  * than not at all. Reroll never touches the lock, so a Reroll post reads the same copy.
+ *
+ * **No-draw without a column** (M20.7, M20 D6 (d)): region wars that could not be drawn at Roll
+ * locked the standing mode and left the rule (with its stale pair) pending on the row, which Roll
+ * did not write. So a standing lock with region wars pending on a row last written before the lock
+ * is the no-draw case; one written after it is a choice for the next game and says nothing here.
  */
 export async function loadTeamsMode(client: ServiceClient, lobbyId: string): Promise<TeamsModeInput | null> {
   try {
     const stored = await readLobbyLock(client, lobbyId);
-    return stored === null
-      ? null
-      : {
-          mode: stored.lock.mode,
-          rated: stored.lock.rated,
-          standing: stored.standing,
-          ...(stored.noDraw ? { noDraw: true } : {}),
-        };
+    if (stored === null) return null;
+    const { lock } = stored;
+    const noDraw =
+      lock.mode.id === lock.standing && (await regionLeftPending(client, lobbyId, stored.lockedAt));
+    return {
+      mode: lock.mode,
+      rated: lockRated(lock),
+      standing: lock.standing,
+      ...(noDraw ? { noDraw: true } : {}),
+    };
   } catch (error) {
     console.error('discord: reading the lobby mode lock failed; posting without the rule line', error);
     return null;
   }
+}
+
+/** Whether the lobby's group still has region wars pending from before the lock was taken. */
+async function regionLeftPending(
+  client: ServiceClient,
+  lobbyId: string,
+  lockedAt: string | null,
+): Promise<boolean> {
+  if (lockedAt === null) return false;
+  const { data: lobby, error } = await client
+    .from('lobbies')
+    .select('group_id')
+    .eq('id', lobbyId)
+    .maybeSingle();
+  if (error || lobby === null) return false;
+  const stored = await readModeRow(client, lobby.group_id);
+  return (
+    stored.row.pending?.id === 'region' &&
+    stored.updatedAt !== null &&
+    Date.parse(stored.updatedAt) <= Date.parse(lockedAt)
+  );
 }
 
 /**

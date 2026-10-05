@@ -400,44 +400,48 @@ describe('handBack: per field, only into empty fields', () => {
   const lock: ModeLock = { standing: 'normal', mode: ioniaNoxus, rated: false };
 
   it('fills an empty rule and an empty Rated', () => {
-    expect(handBack(row(), lock)).toEqual({ pending: ioniaNoxus, rated: false });
+    expect(handBack(row(), lock, false)).toEqual({ pending: ioniaNoxus, rated: false });
   });
 
   it('a newer pick wins, and keeps its own default Rated (no explicit Rated from the old rule)', () => {
-    expect(handBack(row({ pending: tanks }), lock)).toEqual({});
+    expect(handBack(row({ pending: tanks }), lock, false)).toEqual({});
     // Pick B after Roll on A with Rated on, then the teams come down: B stays at its default.
     const state = row({ pending: { id: 'region', blue: 'zaun', red: 'targon' }, rated: true });
     const taken = take(state, ctx());
     let after = apply(state, taken.patch);
     after = apply(after, patchOf(after, { type: 'pick', rule: mirror }));
-    expect(handBack(after, taken.lock)).toEqual({});
-    expect(nextRated(apply(after, handBack(after, taken.lock)))).toBe(true);
+    expect(handBack(after, taken.lock, false)).toEqual({});
+    expect(nextRated(apply(after, handBack(after, taken.lock, false)))).toBe(true);
   });
 
   it('the same rule re-queued after Roll still gets its Rated back', () => {
-    expect(handBack(row({ pending: { id: 'region', blue: 'zaun', red: 'targon' } }), lock)).toEqual({
+    expect(handBack(row({ pending: { id: 'region', blue: 'zaun', red: 'targon' } }), lock, false)).toEqual({
       rated: false,
     });
   });
 
   it('a standing lock hands Rated back to a row with no rule, never onto a newer rule', () => {
     const standing: ModeLock = { standing: 'normal', mode: { id: 'normal' }, rated: false };
-    expect(handBack(row(), standing)).toEqual({ rated: false });
-    expect(handBack(row({ pending: tanks }), standing)).toEqual({});
+    expect(handBack(row(), standing, false)).toEqual({ rated: false });
+    expect(handBack(row({ pending: tanks }), standing, false)).toEqual({});
   });
 
   it('a newer Rated wins; the rule still returns if empty', () => {
-    expect(handBack(row({ rated: true }), lock)).toEqual({ pending: ioniaNoxus });
+    expect(handBack(row({ rated: true }), lock, false)).toEqual({ pending: ioniaNoxus });
   });
 
   it('a standing lock returns no rule; a default Rated returns nothing', () => {
-    expect(handBack(row(), { standing: 'normal', mode: { id: 'normal' }, rated: null })).toEqual({});
+    expect(handBack(row(), { standing: 'normal', mode: { id: 'normal' }, rated: null }, false)).toEqual({});
   });
 
   it('returns the pair as last locked (redraws included)', () => {
     const redrawn = lockTransition(lock, { type: 'redraw' }, ctx());
     if (!redrawn.ok) throw new Error('refused');
-    expect(handBack(row(), redrawn.lock).pending).toEqual({ id: 'region', blue: 'ionia', red: 'targon' });
+    expect(handBack(row(), redrawn.lock, false).pending).toEqual({
+      id: 'region',
+      blue: 'ionia',
+      red: 'targon',
+    });
   });
 
   it('twice equals once', () => {
@@ -447,8 +451,8 @@ describe('handBack: per field, only into empty fields', () => {
       row({ rated: true }),
       row({ pending: mirror, rated: false }),
     ]) {
-      const once = apply(state, handBack(state, lock));
-      expect(handBack(once, lock)).toEqual({});
+      const once = apply(state, handBack(state, lock, false));
+      expect(handBack(once, lock, false)).toEqual({});
     }
   });
 
@@ -467,14 +471,14 @@ describe('handBack: per field, only into empty fields', () => {
     for (const state of states) {
       const taken = take(state, ctx());
       const after = apply(state, taken.patch);
-      expect(apply(after, handBack(after, taken.lock))).toEqual(state);
+      expect(apply(after, handBack(after, taken.lock, false))).toEqual(state);
     }
     // The no-draw path too, with Rated at its default and set either way.
     for (const rated of [null, true, false]) {
       const noDraw = row({ standing: 'fearless', pending: ioniaNoxus, rated });
       const taken = take(noDraw, ctx(sequence(0), NO_PAIR));
       const after = apply(noDraw, taken.patch);
-      expect(apply(after, handBack(after, taken.lock))).toEqual(noDraw);
+      expect(apply(after, handBack(after, taken.lock, false))).toEqual(noDraw);
     }
   });
 
@@ -492,13 +496,47 @@ describe('handBack: per field, only into empty fields', () => {
     expect(apply(after, recorded.patch)).toEqual(noDraw);
   });
 
+  it('an admin write after the lock wins outright: nothing is handed back (M20.7 review)', () => {
+    // Tanks locked, the admin picks Normal, the teams come down: the row stays Normal.
+    const state = row({ standing: 'fearless', pending: tanks, rated: true });
+    const taken = take(state, ctx());
+    let after = apply(state, taken.patch);
+    after = apply(after, patchOf(after, { type: 'standing', standing: 'normal' }));
+    expect(handBack(after, taken.lock, true)).toEqual({});
+    expect(apply(after, handBack(after, taken.lock, true))).toEqual(row({ standing: 'normal' }));
+    // Without the flag, the same row would take Tanks back (the rule slot is empty).
+    expect(handBack(after, taken.lock, false)).toEqual({ pending: tanks, rated: true });
+    // A Rated flip after Roll counts too: neither the rule nor Rated comes back.
+    const flipped = apply(apply(state, taken.patch), { rated: false });
+    expect(handBack(flipped, taken.lock, true)).toEqual({});
+    // Every row, touched: nothing.
+    for (const touched of [row(), row({ pending: mirror }), row({ rated: true })]) {
+      expect(handBack(touched, taken.lock, true)).toEqual({});
+    }
+  });
+
+  it('recordGame passes it through: a touched row gets nothing back from a remake or an ARAM', () => {
+    const state = row({ pending: tanks, rated: true });
+    const taken = take(state, ctx());
+    const after = apply(state, taken.patch);
+    for (const kind of ['remake', 'aram'] as const) {
+      expect(
+        recordGame(after, { kind, lock: taken.lock, live: true, rowTouchedAfterLock: true }).patch,
+      ).toEqual({});
+      expect(recordGame(after, { kind, lock: taken.lock, live: true }).patch).toEqual({
+        pending: tanks,
+        rated: true,
+      });
+    }
+  });
+
   it('take then a newer admin choice then handBack keeps every newer field', () => {
     const state = row({ pending: ioniaNoxus, rated: true });
     const taken = take(state, ctx());
     let after = apply(state, taken.patch);
     after = apply(after, patchOf(after, { type: 'pick', rule: mirror }));
     after = apply(after, patchOf(after, { type: 'rated', rated: false }));
-    expect(handBack(after, taken.lock)).toEqual({});
+    expect(handBack(after, taken.lock, false)).toEqual({});
   });
 });
 
@@ -576,7 +614,7 @@ describe('the owner rule: the rule and Rated belong to the next game actually pl
     const state = row({ pending: ioniaNoxus, rated: true });
     const taken = take(state, ctx());
     let after = apply(state, taken.patch);
-    after = apply(after, handBack(after, taken.lock)); // teams down: balanced -> open
+    after = apply(after, handBack(after, taken.lock, false)); // teams down: balanced -> open
     expect(after).toEqual(state);
     const recorded = recordGame(after, { kind: 'rift', lock: null, live: true });
     expect(recorded.stamp).toEqual({ standing: 'normal', mode: ioniaNoxus, rated: true, checked: true });
@@ -588,7 +626,7 @@ describe('the owner rule: the rule and Rated belong to the next game actually pl
     for (let i = 0; i < 3; i += 1) {
       const taken = take(state, ctx());
       const after = apply(state, taken.patch);
-      state = apply(after, handBack(after, taken.lock));
+      state = apply(after, handBack(after, taken.lock, false));
     }
     expect(state).toEqual(row({ standing: 'fearless', pending: mirror, rated: false }));
   });
@@ -647,7 +685,7 @@ describe('property: no reachable state is a region rule without a valid pair', (
           state = apply(state, taken.patch);
           lock = taken.lock;
         } else if (r < 0.15 && lock !== null) {
-          state = apply(state, handBack(state, lock));
+          state = apply(state, handBack(state, lock, false));
           lock = null;
         } else if (r < 0.2) {
           state = apply(state, recordGame(state, { kind: 'rift', lock, live: true }).patch);

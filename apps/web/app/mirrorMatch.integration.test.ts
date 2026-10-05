@@ -55,7 +55,7 @@ const DRAFT_RED = lanes(98, 121, 4, 51, 201);
 
 if (stack === null) {
   describe.skip('mirror match end to end against the local Supabase stack', () => {
-    it('needs the local stack with 0032 applied: `pnpm db:start`', () => {
+    it('needs the local stack with 0047 applied: `pnpm db:start`', () => {
       expect(true).toBe(true);
     });
   });
@@ -158,7 +158,8 @@ if (stack === null) {
       const poolBefore = await night.poolIds();
 
       const { answer, game, lock } = await playMirror(KEPT, KEPT);
-      expect(lock).toMatchObject({ lock_mode: 'fearless', lock_rule: 'mirror', lock_rated: true });
+      // M20.7: Rated is moved as it was (null = mirror's default, rated).
+      expect(lock).toMatchObject({ lock_mode: 'fearless', lock_rule: 'mirror', lock_rated: null });
       expect(descriptionOf(night.posts[0])).toContain(
         `This game: mirror match, same champion as your lane opponent. Blind Pick lobby. Rated. How it works: https://kustom.test/g/${night.group.slug}/mode`,
       );

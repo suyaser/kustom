@@ -77,16 +77,25 @@ function answerRoll(
   }
 
   const { splitId, outcome } = result.value;
+  // M20.7 (M20 D11): a region pair the bans made short was redrawn by Roll; the answer says so.
+  const modeNotice = result.value.outcome === 'rolled' ? result.value.modeNotice : null;
   const notice =
     outcome === 'rolled'
-      ? 'Teams are up.'
+      ? `Teams are up.${modeNotice === null ? '' : ` ${modeNotice}`}`
       : 'Those teams were already up for this lobby. Nothing was posted.';
 
   if (context.form) return redirectBack(context.request, back, { notice });
 
   return context.respond(
     rollResponseSchema,
-    { ok: true, lobbyId, status: 'balanced', splitId, outcome },
+    {
+      ok: true,
+      lobbyId,
+      status: 'balanced',
+      splitId,
+      outcome,
+      ...(modeNotice === null ? {} : { modeNotice }),
+    },
     notice,
   );
 }

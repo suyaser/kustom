@@ -403,7 +403,7 @@ describe('M15.5: rules, Spin and Rated on the admin row', () => {
     expect(screen.getByText('Changes apply from the next game.')).toBeInTheDocument();
   });
 
-  it('Spin posts the spin route and reveals the server pick on this page and the channel', async () => {
+  it('Spin posts the mode route (spin: true, M20.7) and reveals the server pick on this page and the channel', async () => {
     const fetchMock = vi.fn(
       async () =>
         ({
@@ -423,17 +423,18 @@ describe('M15.5: rules, Spin and Rated on the admin row', () => {
     window.removeEventListener('kustom:spin-reveal', record);
     window.removeEventListener('kustom:spin-broadcast', record);
     const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
-    expect(url).toBe('/api/admin/mode/spin');
-    expect(JSON.parse(String(init.body))).toEqual({ groupId: ORIGINAL_GROUP.id });
+    expect(url).toBe('/api/admin/mode');
+    expect(JSON.parse(String(init.body))).toEqual({ groupId: ORIGINAL_GROUP.id, spin: true });
     expect(events).toEqual(['kustom:spin-reveal:class:Tank', 'kustom:spin-broadcast:class:Tank']);
   });
 
-  it('Spin works without JS: a form post to the spin route that comes back to Tonight', () => {
+  it('Spin works without JS: a form post to the mode route (spin=true) that comes back to Tonight', () => {
     draw();
     const spin = screen.getByRole('button', { name: 'Spin' }) as HTMLButtonElement;
     expect(spin.type).toBe('submit');
     const form = spin.form as HTMLFormElement;
-    expect(form.getAttribute('action')).toBe('/api/admin/mode/spin');
+    expect(form.getAttribute('action')).toBe('/api/admin/mode');
+    expect((form.elements.namedItem('spin') as HTMLInputElement).value).toBe('true');
     expect(form.getAttribute('method')).toBe('post');
     expect((form.elements.namedItem('redirectTo') as HTMLInputElement).value).toBe('/g/customs');
   });

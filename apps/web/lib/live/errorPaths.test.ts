@@ -1,4 +1,4 @@
-import type { ModeState } from '@customs/core';
+import type { ModeRow } from '@customs/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { setGroupModeRoute } from '@/app/api/admin/mode/handler';
 import { selfLinkRoute } from '@/app/api/me/link/handler';
@@ -8,7 +8,7 @@ import type { RebuildResult } from '@/lib/ingest/rebuild';
 import { runRebuildCron } from '@/lib/ingest/rebuildCron';
 import { sweepIdleLobbies } from '@/lib/lobbyState';
 import type { MeAuthResult } from '@/lib/me/identity';
-import { missingState } from '@/lib/mode/state';
+import { missingRow } from '@/lib/mode/state';
 import type { ServiceClient } from '@/lib/supabase';
 import { LiveChanges } from './bump';
 
@@ -115,12 +115,12 @@ describe('a write that lands and then throws still bumps (M19.9)', () => {
         discordName: null,
       },
     };
-    const card: ModeState = { ...missingState(), standing: 'fearless', version: 1 };
+    const card: ModeRow = { ...missingRow(), standing: 'fearless' };
     const route = setGroupModeRoute({
       getClient: () => client,
       authorize: async () => admin,
       store: {
-        read: async () => ({ state: card, exists: true }),
+        read: async () => ({ row: card, exists: true, updatedAt: '2026-10-05T18:00:00.000Z' }),
         write: async () => {
           throw new Error('timeout after commit');
         },

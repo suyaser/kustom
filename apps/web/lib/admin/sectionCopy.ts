@@ -107,8 +107,6 @@ export const RATED_NO_SWITCHED_OFF = 'No · Rated was off';
 export const RATED_NO_GATE = 'No · too short or not ten players';
 /** M15.13: a game from before the owner's latest Reset ratings. [NEW COPY] */
 export const RATED_NO_BEFORE_RESET = 'No · before the ratings reset';
-/** M15.17: region wars picked, too few open champions to draw two regions at Roll. [NEW COPY] */
-export const RATED_NO_REGION_NO_DRAW = "No · Region wars couldn't be drawn";
 export const RATED_WAITING = 'Waiting to be counted';
 
 /** The Rated cell for one captured game. */
@@ -126,8 +124,6 @@ export function ratedLabel(reason: RatedReason): string {
       return RATED_NO_SWITCHED_OFF;
     case 'gate':
       return RATED_NO_GATE;
-    case 'no-draw':
-      return RATED_NO_REGION_NO_DRAW;
     case 'before-reset':
       return RATED_NO_BEFORE_RESET;
     case 'waiting':
